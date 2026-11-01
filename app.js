@@ -115,7 +115,7 @@
   function applyPrefs() {
     var r = document.documentElement, t = resolveTheme();
     r.setAttribute('data-theme', t); r.setAttribute('data-size', PREF.size);
-    var mt = document.querySelector('meta[name=theme-color]'); if (mt) mt.setAttribute('content', t === 'light' ? '#f4f3ef' : '#121316');
+    var mt = document.querySelector('meta[name=theme-color]'); if (mt) mt.setAttribute('content', t === 'light' ? '#D9382B' : '#C62F23');
   }
   function savePref() { try { localStorage.setItem('pktcg.theme', PREF.theme); localStorage.setItem('pktcg.size', PREF.size); } catch (e) {} applyPrefs(); }
   var SIZE_LABEL = { s: 'P', m: 'M', l: 'G' };
@@ -247,6 +247,9 @@
     return '<span class="card f-' + k + '"><span class="cn">' + esc(m.n) + '</span><span class="art">' + sp(m, 'sp') + '</span><span class="ln"></span><span class="ln s"></span>' +
       (big ? '<span class="ln s"></span>' : '') + '<span class="cf"><i>' + esc(m.set) + '</i><i>' + esc(m.no) + '</i></span></span>';
   }
+  function tcap(m) {
+    return '<span class="tcap"><span class="tcn"><b>' + esc(m.n) + '</b><i>#' + pad(m.d) + '</i></span><span class="tbd" aria-hidden="true">' + (m.own ? '\u2713' : '+') + '</span></span>';
+  }
   function tile(m) {
     var lab = m.n + ', ' + pad(m.d) + ', ' + (m.own ? 'na coleção' : 'faltando');
     var tag = m.alt ? '<span class="tag">' + (m.kind === 'Regional' ? 'Reg' : 'Alt') + '</span>' : '';
@@ -254,9 +257,9 @@
     var want = !m.own && ST.wants.indexOf(m.id) >= 0 ? '<span class="want" title="Na lista de compras">' + ICON.heart + '</span>' : '';
     if (m.own) {
       var md = META[metaKey(m)], ttl = m.n + (m.set ? ' · ' + (md && md.sn ? md.sn + ' ' : '') + m.set + ' ' + m.no : '');
-      return '<button class="tile" data-id="' + m.id + '" title="' + esc(ttl) + '" aria-label="' + esc(lab) + '">' + cardFrame(m, false) + imgTag(m, false) + tag + '</button>';
+      return '<button class="tile own" data-id="' + m.id + '" title="' + esc(ttl) + '" aria-label="' + esc(lab) + '"><span class="tart">' + cardFrame(m, false) + imgTag(m, false) + tag + '</span>' + tcap(m) + '</button>';
     }
-    return '<button class="tile" data-id="' + m.id + '" aria-label="' + esc(lab) + '"><span class="ghost' + (noCard(m) ? ' none' : '') + '"><span class="gn">' + esc(m.n) + '</span>' + sp(m, 'sp') + '<span class="gx">#' + pad(m.d) + '</span></span>' + tag + want + '</button>';
+    return '<button class="tile miss" data-id="' + m.id + '" aria-label="' + esc(lab) + '"><span class="tart"><span class="ghost' + (noCard(m) ? ' none' : '') + '"><span class="gn">' + esc(m.n) + '</span>' + sp(m, 'sp') + '<span class="gx">#' + pad(m.d) + '</span></span>' + tag + want + '</span>' + tcap(m) + '</button>';
   }
   function chip(label, on, attrs, sub) {
     return '<button class="chip" aria-pressed="' + (on ? 'true' : 'false') + '" ' + attrs + '>' + label + (sub ? ' <b>' + sub + '</b>' : '') + '</button>';
@@ -341,7 +344,7 @@
     h += regionChips(S);
     var nf = activeFilters();
     h += '<div class="scroller" role="group" aria-label="Filtros">' +
-      chip('Todas', UI.status === 'all', 'data-status="all"') + chip('Tenho', UI.status === 'own', 'data-status="own"') + chip('Faltam', UI.status === 'miss', 'data-status="miss"') + '<span class="divider"></span>' +
+      '<span class="segc">' + chip('Todas', UI.status === 'all', 'data-status="all"') + chip('Tenho', UI.status === 'own', 'data-status="own"') + chip('Faltam', UI.status === 'miss', 'data-status="miss"') + '</span>' +
       '<button class="chip" data-act="filters" aria-pressed="' + (nf ? 'true' : 'false') + '">Filtros' + (nf ? ' <b>' + nf + '</b>' : '') + '</button></div>';
     var n = VISIBLE.length;
     h += '<div class="count-line"><span>' + n + (n === 1 ? ' resultado' : ' resultados') + '</span>' + sizeBtn() + (UI.status === 'miss' && n ? '<button class="link-btn" data-act="addvis">Adicionar à lista de compras</button>' : '') + '</div>';
@@ -787,7 +790,7 @@
     function giveUp() {
       if (mid) {
         NOIMG[mid] = 1;
-        var tl = t.closest('.tile');
+        var tl = t.closest('.tart') || t.closest('.tile');
         if (tl && !tl.querySelector('.noimg')) tl.insertAdjacentHTML('beforeend', '<span class="tag noimg">Sem imagem</span>');
         var cur = BY[V.ids[V.i]];
         if (cur && cur.id === mid && !$('#viewer').hidden) viewerInfo(cur);
