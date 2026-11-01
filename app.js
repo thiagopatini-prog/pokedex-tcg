@@ -27,6 +27,52 @@
   } catch (e) {}
   function save() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} }
 
+  /* ---------- aparência: tema e tamanho das cartas ---------- */
+  var PREF = { theme: 'dark', size: 'm' };
+  try { PREF.theme = localStorage.getItem('pktcg.theme') || 'dark'; PREF.size = localStorage.getItem('pktcg.size') || 'm'; } catch (e) {}
+  function resolveTheme() { return PREF.theme === 'auto' ? (window.matchMedia && matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark') : PREF.theme; }
+  function applyPrefs() {
+    var r = document.documentElement, t = resolveTheme();
+    r.setAttribute('data-theme', t); r.setAttribute('data-size', PREF.size);
+    var mt = document.querySelector('meta[name=theme-color]'); if (mt) mt.setAttribute('content', t === 'light' ? '#f4f3ef' : '#121316');
+  }
+  function savePref() { try { localStorage.setItem('pktcg.theme', PREF.theme); localStorage.setItem('pktcg.size', PREF.size); } catch (e) {} applyPrefs(); }
+  var SIZE_LABEL = { s: 'P', m: 'M', l: 'G' };
+  if (window.matchMedia) { try { matchMedia('(prefers-color-scheme: light)').addEventListener('change', function () { if (PREF.theme === 'auto') applyPrefs(); }); } catch (e) {} }
+
+  /* ---------- dados extras da carta (nome da coleção, total, raridade) vindos da TCGdex ---------- */
+  var RTDX = {};
+  Object.keys(TDX).forEach(function (code) { TDX[code].forEach(function (p) { RTDX[p.split('/')[1]] = code; }); });
+  var META = {}, METAFAIL = {}, META_KEY = 'pktcg.meta.v1';
+  try { META = JSON.parse(localStorage.getItem(META_KEY) || '{}'); } catch (e) {}
+  function getJSON(url) { return fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.json(); }); }
+  function metaKey(m) { return m.tid || (m.set + '-' + m.no); }
+  function metaIds(m) {
+    if (m.tid) return [m.tid];
+    var out = [];
+    (TDX[m.set] || []).forEach(function (p) {
+      var sid = p.split('/')[1], raw = String(parseInt(m.no, 10));
+      [m.no, raw].forEach(function (n, i, a) { if (n && a.indexOf(n) === i) out.push(sid + '-' + n); });
+    });
+    return out;
+  }
+  function loadMeta(m, cb) {
+    if (!m.own || !m.set || !m.no) return;
+    var k = metaKey(m); if (META[k] || METAFAIL[k]) return;
+    var ids = metaIds(m), tries = [];
+    ['pt', 'en'].forEach(function (l) { ids.forEach(function (id) { tries.push([l, id]); }); });
+    if (!tries.length) { METAFAIL[k] = 1; return; }
+    (function next(i) {
+      if (i >= tries.length) { METAFAIL[k] = 1; return; }
+      getJSON('https://api.tcgdex.net/v2/' + tries[i][0] + '/cards/' + tries[i][1]).then(function (c) {
+        var cc = (c.set && c.set.cardCount) || {};
+        META[k] = { sn: (c.set && c.set.name) || '', tot: cc.official || cc.total || '', ra: c.rarity || '', il: c.illustrator || '', hp: c.hp || '', ty: (c.types || []).join(', ') };
+        try { localStorage.setItem(META_KEY, JSON.stringify(META)); } catch (e) {}
+        if (cb) cb();
+      }, function () { next(i + 1); });
+    })(0);
+  }
+
   var UI = { view: 'colecao', region: 0, status: 'all', fin: '', set: '', q: '', search: false };
   var BY = {}, VISIBLE = [], V = { ids: [], i: 0 }, confirmRemove = false;
   var FIN_LABEL = { '': 'Normal', 'Normal': 'Normal', 'Reverse Foil': 'Reverse Foil', 'Foil': 'Foil', 'Promo': 'Promo', 'Pokeball Foil': 'Pokeball Foil' };
@@ -57,6 +103,7 @@
   /* ---------- imagem real da carta ---------- */
   // Lista de endereços para tentar, em ordem: português e inglês, número com e sem zeros à esquerda.
   function sources(m, hi) {
+    if (m.own && m.img) return [m.img + '/' + (hi ? 'high' : 'low') + '.webp'];
     if (!m.own || !m.set || !/^\d+$/.test(m.no || '')) return [];
     var o = (window.CARD_IMG || {})[m.set + '-' + m.no];
     if (o) return [o];
@@ -156,15 +203,16 @@
       '<select class="sel' + (UI.set ? ' on' : '') + '" id="f-set" aria-label="Coleção"><option value="">Coleção</option>' + sets.map(function (s) { return '<option' + (UI.set === s ? ' selected' : '') + '>' + esc(s) + '</option>'; }).join('') + '</select>' +
       chip('Formas alt.', ST.alt, 'data-alt="1"') + '</div>';
     var n = VISIBLE.length;
-    h += '<div class="count-line"><span>' + n + (n === 1 ? ' resultado' : ' resultados') + '</span>' + (UI.status === 'miss' && n ? '<button class="link-btn" data-act="addvis">Adicionar à lista de compras</button>' : '') + '</div>';
+    h += '<div class="count-line"><span>' + n + (n === 1 ? ' resultado' : ' resultados') + '</span>' + sizeBtn() + (UI.status === 'miss' && n ? '<button class="link-btn" data-act="addvis">Adicionar à lista de compras</button>' : '') + '</div>';
     return h + gridHtml('grid');
   }
+  function sizeBtn() { return '<button class="link-btn size-btn" data-act="size" aria-label="Mudar o tamanho das cartas">Tamanho: ' + SIZE_LABEL[PREF.size] + '</button>'; }
   function gridHtml(cls) {
     if (!VISIBLE.length) return '<div class="empty"><h2>Nada por aqui</h2><p>Mude os filtros ou a busca para ver cartas.</p></div>';
     return '<div class="grid ' + cls + '" id="grid">' + VISIBLE.map(tile).join('') + '</div>';
   }
   function viewVitrine(S) {
-    return regionChips(S) + '<div class="count-line"><span>' + VISIBLE.length + ' cartas na vitrine</span></div>' + gridHtml('vitrine');
+    return regionChips(S) + '<div class="count-line"><span>' + VISIBLE.length + ' cartas na vitrine</span>' + sizeBtn() + '</div>' + gridHtml('vitrine');
   }
   function wantList() {
     return ST.wants.map(function (id) { return BY[id]; }).filter(function (m) { return m && !m.own; });
@@ -184,13 +232,17 @@
     return h + '</ul>';
   }
   function viewMais(S) {
-    var h = '<section class="panel"><h2>Progresso por região</h2>';
+    var h = '<section class="panel"><h2>Aparência</h2><p>Tema</p><div class="seg">' +
+      chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Automático', PREF.theme === 'auto', 'data-theme-set="auto"') +
+      '</div><p>Tamanho das cartas</p><div class="seg">' +
+      chip('Pequeno', PREF.size === 's', 'data-size-set="s"') + chip('Médio', PREF.size === 'm', 'data-size-set="m"') + chip('Grande', PREF.size === 'l', 'data-size-set="l"') +
+      '</div></section><section class="panel"><h2>Progresso por região</h2>';
     D.regions.forEach(function (r) {
       var b = S.byR[r.g];
       h += '<div class="rbar"><span>' + esc(r.name) + '</span><div class="bar"><i style="width:' + pct(b.own, b.tot) + '%"></i></div><span>' + b.own + '/' + b.tot + '</span></div>';
     });
     h += '</section><section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>';
-    h += '<section class="panel"><h2>Imagens das cartas</h2><p>As cartas que você tem aparecem com a imagem oficial quando a coleção é encontrada na base pública. Quando não é, aparece uma ficha com a arte do Pokémon.</p></section>';
+    h += '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa. Quando não há imagem, aparece uma ficha com a arte do Pokémon.</p></section>';
     return h;
   }
 
@@ -228,15 +280,25 @@
     else inner = '<span class="card"><span class="art">' + sp(m, 'sp') + '</span><span class="cn" style="font-weight:500">Ainda não tenho</span></span>';
     big.innerHTML = inner;
     $('#v-pos').textContent = (V.i + 1) + ' de ' + V.ids.length;
-    var pills = '';
-    if (m.own) { pills += '<span class="pill ok">Na coleção</span>'; if (m.fin) pills += '<span class="pill">' + esc(FIN_LABEL[m.fin] || m.fin) + '</span>'; if (m.set) pills += '<span class="pill">' + esc(m.set) + ' · ' + esc(m.no) + '</span>'; }
-    else { pills += '<span class="pill warn">Faltando</span>'; if (note(m)) pills += '<span class="pill">' + esc(note(m)) + '</span>'; }
+    viewerInfo(m);
+    loadMeta(m, function () { var cur = BY[V.ids[V.i]]; if (cur && cur.id === m.id && !$('#viewer').hidden) viewerInfo(cur); });
+    $('#v-prev').hidden = V.ids.length < 2; $('#v-next').hidden = V.ids.length < 2;
+  }
+  function viewerInfo(m) {
+    var pills = '', det = '';
+    if (m.own) {
+      pills += '<span class="pill ok">Na coleção</span>'; pills += '<span class="pill">' + esc(FIN_LABEL[m.fin || 'Normal'] || m.fin) + '</span>';
+      var md = META[metaKey(m)], tot = md && md.tot ? '/' + md.tot : '';
+      if (m.set) {
+        det = '<dl class="details"><dt>Coleção</dt><dd>' + (md && md.sn ? esc(md.sn) + ' · ' : '') + esc(m.set) + '</dd><dt>Número</dt><dd>' + esc(m.no) + esc(tot) + '</dd>' +
+          (md && md.ra ? '<dt>Raridade</dt><dd>' + esc(md.ra) + '</dd>' : '') + (md && md.il ? '<dt>Ilustrador</dt><dd>' + esc(md.il) + '</dd>' : '') + (md && md.hp ? '<dt>PS</dt><dd>' + esc(md.hp) + '</dd>' : '') + '</dl>';
+      }
+    } else { pills += '<span class="pill warn">Faltando</span>'; if (note(m)) pills += '<span class="pill">' + esc(note(m)) + '</span>'; }
     var wanted = ST.wants.indexOf(m.id) >= 0;
     var acts = m.own
       ? '<button class="primary" data-vact="edit">Editar carta</button><button class="ghost-btn" data-vact="remove">' + (confirmRemove === m.id ? 'Confirmar remoção' : 'Remover') + '</button>'
       : '<button class="primary" data-vact="edit">Já tenho</button><button class="ghost-btn" data-vact="want">' + (wanted ? 'Na lista ✓' : 'Adicionar à lista') + '</button>';
-    $('#v-info').innerHTML = '<div><h2>' + esc(m.n) + '</h2><div class="meta">#' + pad(m.d) + ' · ' + esc(REG[m.g].name) + (m.alt ? ' · forma ' + (m.kind === 'Regional' ? 'regional' : 'alternativa') : '') + '</div></div><div class="pills">' + pills + '</div><div class="v-actions">' + acts + '</div>';
-    $('#v-prev').hidden = V.ids.length < 2; $('#v-next').hidden = V.ids.length < 2;
+    $('#v-info').innerHTML = '<div><h2>' + esc(m.n) + '</h2><div class="meta">#' + pad(m.d) + ' · ' + esc(REG[m.g].name) + (m.alt ? ' · forma ' + (m.kind === 'Regional' ? 'regional' : 'alternativa') : '') + '</div></div><div class="pills">' + pills + '</div>' + det + '<div class="v-actions">' + acts + '</div>';
   }
   function openViewer(id, ids) {
     V.ids = ids; V.i = Math.max(0, ids.indexOf(id)); confirmRemove = false;
@@ -253,8 +315,53 @@
       '<div class="field"><label for="s-set">Coleção (código)</label><input id="s-set" list="s-sets" autocapitalize="characters" autocomplete="off" placeholder="Ex.: MEG" value="' + esc(m.set) + '"><datalist id="s-sets">' + sets.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
       '<div class="field"><label for="s-no">Número da carta</label><input id="s-no" inputmode="numeric" autocomplete="off" placeholder="Ex.: 001" value="' + esc(m.no) + '"></div>' +
       '<div class="field"><label for="s-fin">Acabamento</label><select id="s-fin">' + FINS.map(function (f) { return '<option' + ((m.fin || 'Normal') === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></div>' +
+      '<div class="finder"><h4>Buscar a carta certa</h4><p class="hint">Digite o nome (e, se quiser, a coleção ou o número, ex.: “charmeleon mep” ou “charmeleon 79”). Toque na carta certa para preencher tudo.</p>' +
+      '<div class="row"><input id="f-q" type="search" autocomplete="off" value="' + esc(baseName(m.n)) + '" aria-label="Nome da carta"><button data-sact="find" type="button">Buscar</button></div><div id="f-res" class="results" hidden></div><p class="hint" id="f-msg"></p></div>' +
       '<div class="v-actions"><button class="primary" data-sact="save" data-id="' + id + '">Salvar</button><button class="ghost-btn" data-sact="cancel">Cancelar</button></div></div>';
-    var sh = $('#sheet'); sh.innerHTML = box; sh.hidden = false; $('#s-set').focus();
+    FIND = { sel: null, set: '', no: '', list: {} };
+    var sh = $('#sheet'); sh.innerHTML = box; sh.hidden = false; $('#s-no').focus();
+  }
+  var FIND = { sel: null, set: '', no: '' };
+  function baseName(n) { return String(n).replace(/\s*\(.*?\)\s*/g, ' ').trim(); }
+  function splitId(id) { var k = id.lastIndexOf('-'); return [id.slice(0, k), id.slice(k + 1)]; }
+  function runFind() {
+    var raw = $('#f-q').value.trim(), msg = $('#f-msg'), box = $('#f-res');
+    if (!raw) return;
+    var words = raw.split(/\s+/), setW = '', numW = '', nameW = [];
+    words.forEach(function (w) {
+      var u = w.toUpperCase();
+      if (/^\d+$/.test(w) && !numW) numW = String(parseInt(w, 10));
+      else if (!setW && (TDX[u] || TDX[u.replace(/PT$/, '')])) setW = u.replace(/PT$/, '');
+      else nameW.push(w);
+    });
+    var name = nameW.join(' ');
+    if (!name) { msg.textContent = 'Digite o nome do Pokémon.'; return; }
+    msg.textContent = 'Buscando…'; box.hidden = true; box.innerHTML = '';
+    var q = encodeURIComponent(name) + '&pagination:page=1&pagination:itemsPerPage=300';
+    Promise.all(['pt', 'en'].map(function (l) { return getJSON('https://api.tcgdex.net/v2/' + l + '/cards?name=' + q).catch(function () { return null; }); })).then(function (rs) {
+      if (!rs[0] && !rs[1]) { msg.textContent = 'Não consegui buscar agora. Confira a internet e tente de novo.'; return; }
+      var seen = {}, list = [];
+      rs.forEach(function (r) { (r || []).forEach(function (c) { if (!seen[c.id]) { seen[c.id] = 1; list.push(c); } }); });
+      if (setW) { var ids = (TDX[setW] || []).map(function (p) { return p.split('/')[1]; }); list = list.filter(function (c) { return ids.indexOf(splitId(c.id)[0]) >= 0; }); }
+      if (numW) list = list.filter(function (c) { return String(parseInt(c.localId, 10)) === numW; });
+      if (!list.length) { msg.textContent = 'Nenhuma carta encontrada. Tente só o nome.'; return; }
+      var more = list.length > 80; list = list.slice(0, 80);
+      FIND.list = {};
+      box.innerHTML = list.map(function (c) {
+        FIND.list[c.id] = c; var p = splitId(c.id), code = RTDX[p[0]] || p[0].toUpperCase();
+        return '<button type="button" class="res" data-sact="pick" data-cid="' + esc(c.id) + '" aria-pressed="false" title="' + esc(c.name + ' · ' + code + ' ' + c.localId) + '">' + (c.image ? '<img loading="lazy" alt="' + esc(c.name) + '" src="' + esc(c.image + '/low.webp') + '">' : '') + '<span>' + esc(code + ' ' + c.localId) + '</span></button>';
+      }).join('');
+      box.hidden = false;
+      msg.textContent = list.length + ' cartas' + (more ? ' (mostrando as 80 primeiras; refine a busca)' : '') + '. Toque na certa.';
+    });
+  }
+  function pickCard(cid) {
+    var c = FIND.list && FIND.list[cid]; if (!c) return;
+    var p = splitId(cid), code = RTDX[p[0]] || p[0].toUpperCase(), no = /^\d+$/.test(c.localId) ? c.localId.padStart(3, '0') : c.localId;
+    $('#s-set').value = code; $('#s-no').value = no;
+    FIND.sel = { id: cid, image: c.image || '' }; FIND.set = code; FIND.no = no;
+    Array.prototype.forEach.call(document.querySelectorAll('.res'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-cid') === cid ? 'true' : 'false'); });
+    $('#f-msg').textContent = 'Escolhida: ' + code + ' ' + no + '. Toque em Salvar.';
   }
   function closeSheet() { $('#sheet').hidden = true; $('#sheet').innerHTML = ''; }
   function saveSheet(id) {
@@ -262,7 +369,8 @@
     if (s.length > 3) s = s.replace(/PT$/, '');
     if (!s || !n) { toast('Preencha a coleção e o número'); return; }
     if (/^\d{1,2}$/.test(n)) n = n.padStart(3, '0');
-    ST.edits[id] = { own: 1, set: s, no: n, fin: f };
+    var pick = FIND.sel && FIND.set === s && FIND.no === n ? FIND.sel : null;
+    ST.edits[id] = { own: 1, set: s, no: n, fin: f, img: pick ? pick.image : '', tid: pick ? pick.id : '' };
     var k = ST.wants.indexOf(id); if (k >= 0) ST.wants.splice(k, 1);
     save(); closeSheet(); compute(); viewerRender(); render(); toast('Carta salva');
   }
@@ -303,6 +411,8 @@
   /* ---------- eventos ---------- */
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;
+    if (t.hasAttribute('data-theme-set')) { PREF.theme = t.getAttribute('data-theme-set'); savePref(); return render(); }
+    if (t.hasAttribute('data-size-set')) { PREF.size = t.getAttribute('data-size-set'); savePref(); return render(); }
     if (t.hasAttribute('data-r')) { UI.region = +t.getAttribute('data-r'); return render(); }
     if (t.hasAttribute('data-status')) { UI.status = t.getAttribute('data-status'); return render(); }
     if (t.hasAttribute('data-alt')) { ST.alt = !ST.alt; save(); return render(); }
@@ -323,6 +433,7 @@
       });
       return copyText(txt, 'Lista copiada');
     }
+    if (act === 'size') { PREF.size = PREF.size === 's' ? 'm' : PREF.size === 'm' ? 'l' : 's'; savePref(); return render(); }
     if (act === 'export') return openExport();
     if (act === 'reset') {
       if (confirmRemove !== 'reset') { confirmRemove = 'reset'; render(); return; }
@@ -335,11 +446,13 @@
       if (va === 'want') { var w = ST.wants.indexOf(id); if (w >= 0) ST.wants.splice(w, 1); else ST.wants.push(id); save(); return viewerRender(); }
       if (va === 'remove') {
         if (confirmRemove !== id) { confirmRemove = id; return viewerRender(); }
-        ST.edits[id] = { own: 0, set: '', no: '', fin: '' }; confirmRemove = false; save(); compute(); viewerRender(); toast('Carta removida'); return;
+        ST.edits[id] = { own: 0, set: '', no: '', fin: '', img: '', tid: '' }; confirmRemove = false; save(); compute(); viewerRender(); toast('Carta removida'); return;
       }
     }
     var sa = t.getAttribute('data-sact');
     if (sa === 'cancel') return closeSheet();
+    if (sa === 'find') return runFind();
+    if (sa === 'pick') return pickCard(t.getAttribute('data-cid'));
     if (sa === 'save') return saveSheet(t.getAttribute('data-id'));
     if (sa === 'download') return download();
     if (sa === 'copycsv') return copyText(buildCsv(), 'CSV copiado');
@@ -356,10 +469,12 @@
     if (alt.length) { t.setAttribute('data-alt', alt.slice(1).join('|')); t.src = alt[0]; } else t.remove();
   }, true);
 
+  $('#btn-theme').addEventListener('click', function () { PREF.theme = resolveTheme() === 'light' ? 'dark' : 'light'; savePref(); if (UI.view === 'mais') render(); });
   $('#btn-search').addEventListener('click', function () {
     UI.search = !UI.search; $('#search').hidden = !UI.search;
     if (UI.search) $('#q').focus(); else { UI.q = ''; $('#q').value = ''; render(); }
   });
+  document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'f-q') { e.preventDefault(); runFind(); } });
   $('#q').addEventListener('input', function (e) { UI.q = e.target.value; render(); });
   $('#v-close').addEventListener('click', closeViewer);
   $('#v-prev').addEventListener('click', function () { go(-1); });
@@ -401,6 +516,7 @@
     render(); window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', route);
+  applyPrefs();
   route();
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
