@@ -515,12 +515,37 @@
     tools.innerHTML = '<select id="f-set2" aria-label="Filtrar por coleção"><option value="">Todas as coleções (' + keys.length + ')</option>' + keys.map(function (k) { return '<option value="' + esc(k) + '">' + esc(sets[k]) + '</option>'; }).join('') + '</select>' +
       '<select id="f-sort" aria-label="Ordenar"><option value="mine">Minhas coleções primeiro</option><option value="set">Ordenar por coleção</option><option value="num">Ordenar por número</option></select>';
     tools.hidden = !list.length;
-    $('#f-msg').textContent = msg || '';
+    FIND.msg = msg || '';
     renderResults();
+  }
+  // filtro por coleção/número: vem das palavras digitadas na busca (ex.: "pikachu svi 25") e, se a pessoa mexer, dos campos "Conferir os dados"
+  function typedFilter(list, f) {
+    var out = list;
+    if (f.set && TDX[f.set]) { var ids = TDX[f.set].map(function (p) { return p.split('/')[1]; }); out = out.filter(function (c) { return ids.indexOf(c._set) >= 0; }); }
+    if (f.num) out = out.filter(function (c) { return String(c._num) === String(parseInt(f.num, 10)); });
+    return out;
+  }
+  function typedNow() {
+    var raw = ($('#f-q') ? $('#f-q').value : '').trim().split(/\s+/), f = { set: '', num: '' };
+    raw.forEach(function (w, k) {
+      var u = w.toUpperCase().replace(/PT$/, '');
+      if (/^\d+$/.test(w) && !f.num) f.num = w; else if (!f.set && k > 0 && TDX[u]) f.set = u;
+    });
+    var s2 = ($('#s-set') ? $('#s-set').value : '').trim().toUpperCase().replace(/PT$/, ''), n2 = ($('#s-no') ? $('#s-no').value : '').trim();
+    if (FIND.tset && s2) f.set = s2; // só vale o campo que a pessoa mexeu (os dados atuais da carta não filtram)
+    if (FIND.tno && n2) f.num = n2;
+    return f;
   }
   function renderResults() {
     var box = $('#f-res'), fs = $('#f-set2') ? $('#f-set2').value : '', so = $('#f-sort') ? $('#f-sort').value : 'mine';
     var list = FIND.all.filter(function (c) { return !fs || c._set === fs; });
+    var tf = typedNow(), tl = typedFilter(list, tf), tnote = '';
+    if (tf.set || tf.num) {
+      var lab = [tf.set, tf.num].filter(Boolean).join(' ');
+      if (tl.length) { tnote = ' Mostrando ' + tl.length + ' de ' + list.length + ' (filtro: ' + lab + '). Apague para ver todas.'; list = tl; }
+      else tnote = ' Nenhuma com ' + lab + '; mostrando todas.';
+    }
+    var mm = $('#f-msg'); if (mm && FIND.msg != null && FIND.all.length) mm.textContent = FIND.msg + tnote;
     var mine = {}; knownSets().forEach(function (x) { mine[x] = 1; });
     list.sort(function (a, b) {
       if (so === 'mine') { var ma = mine[a._code] ? 0 : 1, mb = mine[b._code] ? 0 : 1; if (ma !== mb) return ma - mb; }
@@ -554,9 +579,9 @@
       fetchCards('name=' + encodeURIComponent(cands[i])).then(function (list) {
         if (seq !== FINDSEQ || !$('#f-q')) return; // veio uma busca mais nova
         list = prep(list);
-        if (setW) { var ids = TDX[setW].map(function (p) { return p.split('/')[1]; }); list = list.filter(function (c) { return ids.indexOf(c._set) >= 0; }); }
-        if (numW) list = list.filter(function (c) { return String(c._num) === numW; });
-        if (!list.length) return next(i + 1);
+        var chk = typedFilter(list, { set: setW, num: numW });
+        if (!chk.length && i + 1 < cands.length) return next(i + 1);
+        FIND.name = cands[i];
         showResults(list, '✓ Encontrei ' + list.length + (list.length === 1 ? ' carta' : ' cartas') + (i ? ' para “' + cands[i] + '”' : '') + '. Toque na sua para ' + (FIND.m && FIND.m.own ? 'trocar' : 'adicionar') + '.');
       }, function () { msg.textContent = 'Não consegui buscar agora. Confira a internet e tente de novo.'; });
     })(0);
@@ -740,7 +765,9 @@
     if (sa === 'copycsv') return copyText(buildCsv(), 'CSV copiado');
   });
   document.addEventListener('input', function (e) {
+    if (e.target.id === 's-set' || e.target.id === 's-no') { if (e.target.id === 's-set') FIND.tset = true; else FIND.tno = true; if (FIND.all && FIND.all.length) renderResults(); return; }
     if (e.target.id !== 'f-q') return;
+    if (FIND.all && FIND.all.length) renderResults(); // filtra na hora quando você acrescenta coleção ou número
     clearTimeout(findT);
     if (e.target.value.trim().length >= 3) findT = setTimeout(function () { if ($('#f-q')) runFind(); }, 600); // busca sozinha depois de parar de digitar
   });
@@ -1171,6 +1198,129 @@
   });
   document.addEventListener('visibilitychange', function () { if (document.hidden && SC.open) stopCam(); else if (!document.hidden && SC.open && !SC.stream && !SC.busy) scStartCam(); });
   window.__scan = { parseFoot: parseFoot, matchMon: matchMon, lev: lev, strip: strip };
+
+  /* ---------- cadastro em lote: digite várias cartas, confira, confirme tudo de uma vez ---------- */
+  var LKEY = 'pktcg.lote', LQ = [];
+  try { LQ = JSON.parse(localStorage.getItem(LKEY) || '[]'); if (!Array.isArray(LQ)) LQ = []; } catch (e) { LQ = []; }
+  LQ.forEach(function (it) { if (it.st === 'busy') it.st = 'new'; });
+  function lSave() { try { localStorage.setItem(LKEY, JSON.stringify(LQ)); } catch (e) {} lBadge(); }
+  function lBadge() { var b = $('#btn-lote'); if (b) { var n = LQ.length; b.setAttribute('data-n', n ? String(n) : ''); } }
+  function parseLine(t) {
+    var info = { name: '', num: '', total: '', set: '', monId: '' }, words = [], setW = '';
+    String(t).trim().split(/\s+/).forEach(function (w) {
+      if (!w) return;
+      var m = w.match(/^#?(\d{1,3})(?:\/(\d{2,3}))?$/);
+      if (m && !info.num) { info.num = String(parseInt(m[1], 10)); if (m[2]) info.total = String(parseInt(m[2], 10)); return; }
+      var u = w.toUpperCase().replace(/PT$/, '');
+      if (!setW && u.length >= 2 && TDX[u] && w.length <= 5) { setW = w; info.set = u; return; }
+      words.push(w);
+    });
+    if (!words.length && setW) { words.push(setW); info.set = ''; } // "mew 151": MEW é o nome, não a coleção
+    var mon = matchMon(words.map(function (w) { return { t: w, h: 0 }; }));
+    if (mon) { info.monId = mon.id; info.name = mon.n; } else info.name = words.join(' ');
+    return info;
+  }
+  function lTrim(c) { return { id: c.id, name: c.name, _en: c._en || '', image: c.image || '', localId: c.localId, _code: c._code, _set: c._set, _num: c._num }; }
+  var LRUN = false;
+  function lResolve() {
+    if (LRUN) return; var it = LQ.filter(function (x) { return x.st === 'new'; })[0]; if (!it) return;
+    LRUN = true; it.st = 'busy'; lRender();
+    var seq = SC.seq;
+    resolveCard(it.info, seq).then(function (res) {
+      if (!res) { it.st = 'new'; return; }
+      it.cands = res.list.map(lTrim); it.monId = res.mon ? res.mon.id : '';
+      if (!it.cands.length) { it.st = 'none'; it.sel = ''; }
+      else if (res.exact) { it.st = 'ok'; it.sel = it.cands[0].id; }
+      else if (it.cands.length === 1) { it.st = 'ok'; it.sel = it.cands[0].id; }
+      else { it.st = 'pick'; it.sel = ''; it.open = true; }
+    }, function () { it.st = 'err'; }).then(function () { LRUN = false; lSave(); lRender(); lResolve(); });
+  }
+  function lCard(it) { return (it.cands || []).filter(function (c) { return c.id === it.sel; })[0]; }
+  function lSlot(it, c) { var id = it.monId || monOfCard(c); return id ? slotFor(c, id) : null; }
+  function lRender() {
+    var box = $('#lt-list'); if (!box) return;
+    var ready = 0, h = '';
+    LQ.forEach(function (it, i) {
+      var c = lCard(it), slot = c && lSlot(it, c), s = slot && BY[slot], stx = '', cls = it.st;
+      if (it.st === 'busy' || it.st === 'new') stx = 'Procurando…';
+      else if (it.st === 'none') stx = 'Não achei. Toque em “Editar” para corrigir o texto.';
+      else if (it.st === 'err') stx = 'Sem internet agora. Toque em “Tentar de novo”.';
+      else if (!c) stx = 'Escolha qual é a sua carta ↓';
+      else { ready++; stx = (s && s.own ? 'Já tem ' + s.set + ' ' + s.no + ' — será trocada' : 'Pronta para adicionar'); }
+      var no = c ? (/^\d+$/.test(c.localId) ? c.localId.padStart(3, '0') : c.localId) : '';
+      h += '<div class="lt-row ' + cls + '" data-i="' + i + '"><div class="lt-main"><span class="lt-im">' + (c && c.image ? '<img alt="" src="' + esc(c.image + '/low.webp') + '" data-en="' + esc(c.image.replace('/pt/', '/en/') + '/low.webp') + '">' : '<span>?</span>') + '</span>' +
+        '<span class="lt-t"><b>' + esc(c ? c.name : (it.info.name || it.text)) + '</b><small>' + (c ? esc(c._code + ' · ' + no) : esc(it.text)) + '</small><small class="lt-st">' + esc(stx) + '</small></span>' +
+        '<span class="lt-btns">' + (it.st === 'ok' || it.st === 'pick' ? '<button class="lt-b" data-lt="open" data-i="' + i + '">' + (it.open ? 'Fechar' : 'Trocar') + '</button>' : '') +
+        (it.st === 'none' || it.st === 'err' ? '<button class="lt-b" data-lt="' + (it.st === 'err' ? 'retry' : 'edit') + '" data-i="' + i + '">' + (it.st === 'err' ? 'Tentar de novo' : 'Editar') + '</button>' : '') +
+        '<button class="lt-x" data-lt="del" data-i="' + i + '" aria-label="Tirar da lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button></span></div>';
+      if (it.open && it.cands && it.cands.length) {
+        h += '<div class="sc-cands lt-cands">' + it.cands.map(function (x) {
+          var sl = lSlot(it, x), ss = sl && BY[sl];
+          return '<button type="button" class="sc-c" data-lt="pick" data-i="' + i + '" data-cid="' + esc(x.id) + '" aria-pressed="' + (it.sel === x.id ? 'true' : 'false') + '"><span class="im">' + (x.image ? '<img alt="" src="' + esc(x.image + '/low.webp') + '" data-en="' + esc(x.image.replace('/pt/', '/en/') + '/low.webp') + '">' : '<span class="nopic">sem imagem</span>') + '</span><span class="cap">' + esc(x._code + ' · ' + x.localId) + (ss && ss.own ? '<small class="own">já tem ' + esc(ss.set + ' ' + ss.no) + '</small>' : '<small>' + esc(x.name) + '</small>') + '</span></button>';
+        }).join('') + '</div>';
+      }
+      if (c) { h += '<div class="lt-fin"><label>Acabamento <select data-lt="fin" data-i="' + i + '">' + FINS.map(function (f) { return '<option' + (f === (it.fin || 'Normal') ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></label></div>'; }
+      h += '</div>';
+    });
+    box.innerHTML = h || '<p class="lt-empty">A lista está vazia. Digite as cartas acima.</p>';
+    var ok = $('#lt-ok'); if (ok) { ok.disabled = !ready; ok.textContent = ready ? 'Confirmar ' + ready + (ready === 1 ? ' carta' : ' cartas') : 'Confirmar'; }
+    var cl = $('#lt-clear'); if (cl) cl.hidden = !LQ.length;
+  }
+  function openLote() {
+    var sh = $('#lote');
+    sh.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-label="Cadastrar em lote"><h3>Cadastrar em lote</h3><div class="body">' +
+      '<p class="hint" style="margin:0">Uma carta por linha: nome, coleção e número. Ex.: <b>zeraora meg 2</b> · <b>pikachu svi 25</b> · <b>mew 151</b>. Se faltar coleção ou número, você escolhe a carta na lista. Nada é salvo até você confirmar.</p>' +
+      '<div class="field"><label for="lt-in">Cartas (uma por linha)</label><textarea id="lt-in" rows="2" autocomplete="off" autocapitalize="none" placeholder="zeraora meg 2"></textarea></div>' +
+      '<button class="primary" data-lt="add" type="button">Adicionar à lista</button><div id="lt-list" class="lt-list"></div></div>' +
+      '<div class="foot"><button class="primary" id="lt-ok" data-lt="ok" disabled>Confirmar</button><button class="ghost-btn" id="lt-clear" data-lt="clear" hidden>Limpar lista</button><button class="ghost-btn" data-lt="close">Fechar</button></div></div>';
+    sh.hidden = false; document.body.style.overflow = 'hidden'; lRender(); lResolve();
+  }
+  function closeLote() { $('#lote').hidden = true; $('#lote').innerHTML = ''; document.body.style.overflow = ''; if (LDIRTY) { LDIRTY = false; render(); } }
+  var LDIRTY = false;
+  function lAddText() {
+    var ta = $('#lt-in'), lines = String(ta.value).split(/\n+/).map(function (l) { return l.trim(); }).filter(Boolean);
+    if (!lines.length) return toast('Digite pelo menos uma carta');
+    lines.forEach(function (l) { LQ.push({ text: l, info: parseLine(l), st: 'new', cands: [], sel: '', fin: 'Normal', monId: '' }); });
+    ta.value = ''; lSave(); lRender(); lResolve();
+  }
+  function lConfirm() {
+    var n = 0, keep = [];
+    LQ.forEach(function (it) {
+      var c = lCard(it), slot = c && lSlot(it, c);
+      if (!c || !slot) { keep.push(it); return; }
+      var no = /^\d+$/.test(c.localId) ? c.localId.padStart(3, '0') : c.localId;
+      ST.edits[slot] = { own: 1, set: c._code, no: no, fin: it.fin || 'Normal', img: c.image || '', tid: c.id, imgUrl: '' };
+      var k = ST.wants.indexOf(slot); if (k >= 0) ST.wants.splice(k, 1);
+      delete NOIMG[slot]; n++;
+    });
+    if (!n) return;
+    LQ = keep; save(); compute(); lSave(); LDIRTY = true; lRender();
+    toast(n + (n === 1 ? ' carta adicionada' : ' cartas adicionadas') + (keep.length ? ' · ' + keep.length + ' ainda na lista' : ''));
+    if (!keep.length) closeLote();
+  }
+  document.addEventListener('click', function (e) {
+    var b = e.target.closest('[data-lt],#btn-lote'); if (!b) return;
+    if (b.id === 'btn-lote') return openLote();
+    var a = b.getAttribute('data-lt'), i = +b.getAttribute('data-i'), it = LQ[i];
+    if (a === 'close') return closeLote();
+    if (a === 'add') return lAddText();
+    if (a === 'ok') return lConfirm();
+    if (a === 'clear') { LQ = []; lSave(); return lRender(); }
+    if (!it) return;
+    if (a === 'del') { LQ.splice(i, 1); lSave(); return lRender(); }
+    if (a === 'open') { it.open = !it.open; return lRender(); }
+    if (a === 'pick') { it.sel = b.getAttribute('data-cid'); it.st = 'ok'; it.open = false; lSave(); return lRender(); }
+    if (a === 'retry') { it.st = 'new'; lSave(); lRender(); return lResolve(); }
+    if (a === 'edit') { var ta = $('#lt-in'); ta.value = (ta.value ? ta.value + '\n' : '') + it.text; LQ.splice(i, 1); lSave(); lRender(); ta.focus(); return; }
+  });
+  document.addEventListener('change', function (e) {
+    var t = e.target; if (t && t.getAttribute && t.getAttribute('data-lt') === 'fin') { var it = LQ[+t.getAttribute('data-i')]; if (it) { it.fin = t.value; lSave(); } }
+  });
+  document.addEventListener('keydown', function (e) {
+    if (e.target && e.target.id === 'lt-in' && e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); lAddText(); }
+    if (e.key === 'Escape' && $('#lote') && !$('#lote').hidden) closeLote();
+  });
+  lBadge();
 
   /* ---------- rota e início ---------- */
   var VIEWS = ['colecao', 'vitrine', 'lista', 'mais'];
