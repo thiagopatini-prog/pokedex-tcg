@@ -507,6 +507,7 @@
     var pick = FIND.sel && FIND.set === s && FIND.no === n ? FIND.sel : null;
     ST.edits[id] = { own: 1, set: s, no: n, fin: f, img: pick ? pick.image : '', tid: pick ? pick.id : '', imgUrl: url };
     var k = ST.wants.indexOf(id); if (k >= 0) ST.wants.splice(k, 1);
+    delete NOIMG[id]; // se a imagem tinha falhado antes, tenta de novo com o endereço/carta novos
     save(); closeSheet(); compute(); viewerRender(); render(); toast('Carta salva');
   }
 
