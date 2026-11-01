@@ -275,6 +275,29 @@
     });
     return { all: all, own: own, tot: tot, byR: byR };
   }
+  // busca tolerante a erro de digitação: trecho exato, ou palavra parecida (1 letra errada em palavras de 4+, 2 em 7+)
+  function lev(a, b, max) {
+    if (Math.abs(a.length - b.length) > max) return max + 1;
+    var p = [], c, i, j;
+    for (j = 0; j <= b.length; j++) p[j] = j;
+    for (i = 1; i <= a.length; i++) {
+      c = [i];
+      for (j = 1; j <= b.length; j++) c[j] = Math.min(p[j] + 1, c[j - 1] + 1, p[j - 1] + (a.charAt(i - 1) === b.charAt(j - 1) ? 0 : 1));
+      p = c;
+    }
+    return p[b.length];
+  }
+  function fuzzy(hay, w) {
+    if (hay.indexOf(w) >= 0) return true;
+    if (w.length < 4 || /^\d/.test(w)) return false;
+    var max = w.length >= 7 ? 2 : 1, words = hay.split(/[^a-z0-9]+/), k, t;
+    for (k = 0; k < words.length; k++) {
+      t = words[k]; if (t.length < 3) continue;
+      if (lev(w, t, max) <= max) return true;
+      if (t.length > w.length && lev(w, t.slice(0, w.length), max) <= max) return true;
+    }
+    return false;
+  }
   function filtered(all) {
     var q = norm(UI.q).split(/\s+/).filter(Boolean);
     return all.filter(function (m) {
@@ -290,7 +313,7 @@
       }
       if (q.length) {
         var hay = norm(m.n + ' ' + m.d + ' ' + pad(m.d) + ' ' + m.set + ' ' + m.no + ' ' + REG[m.g].name + (m.alt ? ' alt forma' : ''));
-        for (var i = 0; i < q.length; i++) if (hay.indexOf(q[i].replace(/^#/, '')) < 0) return false;
+        for (var i = 0; i < q.length; i++) if (!fuzzy(hay, q[i].replace(/^#/, ''))) return false;
       }
       return true;
     });
@@ -324,7 +347,7 @@
     h += '<div class="count-line"><span>' + n + (n === 1 ? ' resultado' : ' resultados') + '</span>' + sizeBtn() + (UI.status === 'miss' && n ? '<button class="link-btn" data-act="addvis">Adicionar à lista de compras</button>' : '') + '</div>';
     return h + gridHtml('grid');
   }
-  function sizeBtn() { return '<button class="link-btn size-btn" data-act="size" aria-label="Mudar o tamanho das cartas">Tamanho: ' + SIZE_LABEL[PREF.size] + '</button>'; }
+  function sizeBtn() { return ''; } // tamanho fixo: 2 colunas no celular, 5 no computador
   function gridHtml(cls) {
     if (!VISIBLE.length) return '<div class="empty"><h2>Nada por aqui</h2><p>Mude os filtros ou a busca para ver cartas.</p></div>';
     return '<div class="grid ' + cls + '" id="grid">' + VISIBLE.map(tile).join('') + '</div>';
@@ -380,8 +403,6 @@
     }
     var side = acct + '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
       chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Auto', PREF.theme === 'auto', 'data-theme-set="auto"') +
-      '</div></div><div class="opt"><span>Cartas</span><div class="seg">' +
-      chip('Pequenas', PREF.size === 's', 'data-size-set="s"') + chip('Médias', PREF.size === 'm', 'data-size-set="m"') + chip('Grandes', PREF.size === 'l', 'data-size-set="l"') +
       '</div></div></section>' +
       '<section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>' +
       '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa.</p></section>';
@@ -799,8 +820,8 @@
     big.classList.remove('drag');
     big.style.setProperty('--ry', '0deg'); big.style.setProperty('--rx', '0deg'); big.style.setProperty('--mx', '50%'); big.style.setProperty('--my', '50%');
   }
-  stage.addEventListener('pointerdown', function (e) { if (PRES && !e.target.closest('button')) { closeViewer(); return; } if (e.target.closest('button')) return; down = true; sx = e.clientX; sy = e.clientY; big.classList.add('drag'); tilt(e); });
-  stage.addEventListener('pointermove', function (e) { if (down || e.pointerType === 'mouse') { big.classList.add('drag'); tilt(e); } });
+  stage.addEventListener('pointerdown', function (e) { if (PRES && !e.target.closest('button')) { closeViewer(); return; } if (e.target.closest('button')) return; down = true; sx = e.clientX; sy = e.clientY; if (e.pointerType !== 'touch') { big.classList.add('drag'); tilt(e); } });
+  stage.addEventListener('pointermove', function (e) { if (e.pointerType !== 'touch' && (down || e.pointerType === 'mouse')) { big.classList.add('drag'); tilt(e); } });
   stage.addEventListener('pointerup', function (e) {
     var dx = e.clientX - sx, dy = e.clientY - sy;
     if (down && Math.abs(dx) > 70 && Math.abs(dx) > Math.abs(dy) * 1.5) go(dx < 0 ? 1 : -1);
