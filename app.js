@@ -724,7 +724,9 @@
   // imagem carregou da fonte original: guarda uma cópia no seu servidor (uma vez só, em segundo plano)
   document.addEventListener('load', function (e) {
     var t = e.target;
-    if (!t || !t.classList || !t.classList.contains('real') || t.getAttribute('data-st') || !window.DB || !DB.user()) return;
+    if (!t || !t.classList || !t.classList.contains('real')) return;
+    t.classList.add('ok'); // a foto entra com um fade suave por cima do fundo neutro
+    if (t.getAttribute('data-st') || !window.DB || !DB.user()) return;
     mirEnqueue(t.currentSrc || t.src);
   }, true);
 

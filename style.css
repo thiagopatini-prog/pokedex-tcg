@@ -380,3 +380,11 @@ body[data-view="vitrine"] .grid.vitrine { gap: 22px; padding-top: 22px; }
 .reg-card .rs { max-width: 54%; }
 @media (min-width: 720px) { .reg-card { min-height: 190px; } .reg-card .map { width: 104px; height: 88px; top: 18px; } }
 @media (max-width: 719px) { .reg-card .map { width: 78px; height: 66px; right: 6px; } .reg-card { min-height: 170px; } }
+
+/* foto da carta: enquanto carrega, fundo neutro (sem a arte colorida); a foto entra com fade. Se falhar, a ficha volta. */
+.tile:has(img.real) .card, .big:has(img.real) .card { visibility: hidden; }
+.tile img.real, .big img.real { opacity: 0; transition: opacity .28s ease; }
+.tile img.real.ok, .big img.real.ok { opacity: 1; }
+.tile:has(img.real:not(.ok)), .big:has(img.real:not(.ok)) { background: linear-gradient(100deg, var(--surface2) 30%, var(--surface3, var(--line)) 50%, var(--surface2) 70%) 0 0 / 220% 100%; animation: shimmer 1.3s linear infinite; }
+@keyframes shimmer { to { background-position: -220% 0; } }
+@media (prefers-reduced-motion: reduce) { .tile:has(img.real:not(.ok)), .big:has(img.real:not(.ok)) { animation: none; } .tile img.real, .big img.real { transition: none; } }
