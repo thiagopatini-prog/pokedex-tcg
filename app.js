@@ -41,7 +41,7 @@
       var rd = row.data || {}, rt = +row.t || 0;
       if (!ST.synced) { // primeira vez neste aparelho: junta o que já existe aqui com o que veio da conta
         var w = (rd.wants || []).slice(); ST.wants.forEach(function (id) { if (w.indexOf(id) < 0) w.push(id); });
-        ST.edits = Object.assign({}, rd.edits || {}, ST.edits); ST.wants = w; ST.alt = !!(ST.alt || rd.alt);
+        ST.edits = Object.assign({}, ST.edits, rd.edits || {}); // se a mesma carta foi editada nos dois, vale a da conta (o aparelho novo costuma ter edição velha) ST.wants = w; ST.alt = !!(ST.alt || rd.alt);
         ST.synced = true; ST.t = Date.now(); persist(); return DB.push({ wants: ST.wants, edits: ST.edits, alt: ST.alt }, ST.t);
       }
       if (rt > ST.t) { ST.wants = rd.wants || []; ST.edits = rd.edits || {}; ST.alt = !!rd.alt; ST.t = rt; persist(); return null; }
