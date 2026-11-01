@@ -865,7 +865,7 @@
   }
   // lê "025/165", set e promo a partir do texto do rodapé
   function parseFoot(txt) {
-    var t = String(txt || '').toUpperCase().replace(/[·•]/g, ' '), out = { num: '', total: '', set: '' }, m;
+    var t = String(txt || '').toUpperCase().replace(/[·•]/g, ' ').replace(/[\dO]{1,3}\s*[\/\\|]\s*[\dO]{2,3}/g, function (q) { return q.replace(/O/g, '0'); }), out = { num: '', total: '', set: '' }, m;
     m = t.match(/(\d{1,3})\s*[\/\\|]\s*(\d{2,3})/) || t.match(/\b(\d{3})\s*[IL1]\s*(\d{2,3})\b/);
     if (m) { out.num = String(parseInt(m[1], 10)); out.total = String(parseInt(m[2], 10)); }
     var toks = t.split(/[^A-Z0-9]+/).filter(Boolean), i;
@@ -949,14 +949,24 @@
     return SC.workerP;
   }
   // recorta uma faixa da foto, amplia e aumenta o contraste (ajuda o OCR)
-  function strip(src, sx, sy, sw, sh, outW) {
+  function strip(src, sx, sy, sw, sh, outW, bin) {
     var c = document.createElement('canvas'), k = outW / sw; c.width = outW; c.height = Math.max(8, Math.round(sh * k));
-    var x = c.getContext('2d'); x.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, sx, sy, sw, sh, 0, 0, c.width, c.height);
     try {
-      var im = x.getImageData(0, 0, c.width, c.height), d = im.data, i, g, lo = 255, hi = 0;
-      for (i = 0; i < d.length; i += 4) { g = d[i] * 0.3 + d[i + 1] * 0.59 + d[i + 2] * 0.11; d[i] = g; if (g < lo) lo = g; if (g > hi) hi = g; }
-      var sc = hi > lo ? 255 / (hi - lo) : 1;
-      for (i = 0; i < d.length; i += 4) { g = (d[i] - lo) * sc; d[i] = d[i + 1] = d[i + 2] = g; }
+      var W = c.width, Hh = c.height, im = x.getImageData(0, 0, W, Hh), d = im.data, n = W * Hh, g = new Float32Array(n), i, lo = 255, hi = 0, v;
+      for (i = 0; i < n; i++) { v = d[i * 4] * 0.3 + d[i * 4 + 1] * 0.59 + d[i * 4 + 2] * 0.11; g[i] = v; if (v < lo) lo = v; if (v > hi) hi = v; }
+      var sc = hi > lo ? 255 / (hi - lo) : 1; for (i = 0; i < n; i++) g[i] = (g[i] - lo) * sc;
+      if (bin) {
+        // limiar local (cada ponto comparado com a média da vizinhança): aguenta reflexo e fundo colorido
+        var r = Math.max(8, Math.round(W / 40)), ii = new Float64Array((W + 1) * (Hh + 1)), xx, yy, x0, x1, y0, y1, sum, cnt;
+        for (yy = 0; yy < Hh; yy++) { var row = 0; for (xx = 0; xx < W; xx++) { row += g[yy * W + xx]; ii[(yy + 1) * (W + 1) + xx + 1] = ii[yy * (W + 1) + xx + 1] + row; } }
+        for (yy = 0; yy < Hh; yy++) for (xx = 0; xx < W; xx++) {
+          x0 = Math.max(0, xx - r); x1 = Math.min(W, xx + r + 1); y0 = Math.max(0, yy - r); y1 = Math.min(Hh, yy + r + 1);
+          sum = ii[y1 * (W + 1) + x1] - ii[y0 * (W + 1) + x1] - ii[y1 * (W + 1) + x0] + ii[y0 * (W + 1) + x0]; cnt = (x1 - x0) * (y1 - y0);
+          g[yy * W + xx] = g[yy * W + xx] < (sum / cnt) * 0.86 ? 0 : 255;
+        }
+      }
+      for (i = 0; i < n; i++) { d[i * 4] = d[i * 4 + 1] = d[i * 4 + 2] = g[i]; d[i * 4 + 3] = 255; }
       x.putImageData(im, 0, 0);
     } catch (e) {}
     return c;
@@ -973,12 +983,18 @@
         }, function () {});
       }
       var WL = '0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
-      return pass('6', '', strip(card, 0, 0, W, H * 0.17, 1100), 'top')
-        .then(function () { return pass('6', WL, strip(card, 0, H * 0.86, W, H * 0.14, 1300), 'foot'); })
-        .then(function () { return pass('6', '', strip(card, 0, H * 0.86, W, H * 0.14, 1300), 'foot'); })
-        .then(function () { return pass('7', WL, strip(card, 0, H * 0.9, W * 0.5, H * 0.1, 1200), 'foot'); })
-        .then(function () { return pass('7', WL, strip(card, W * 0.5, H * 0.9, W * 0.5, H * 0.1, 1200), 'foot'); })
-        .then(function () { return pass('11', '', strip(card, 0, 0, W, H * 0.3, 1100), 'top'); });
+      var plan = [
+        ['6', '', function () { return strip(card, 0, 0, W, H * 0.17, 1200, false); }, 'top'],
+        ['6', '', function () { return strip(card, 0, 0, W, H * 0.17, 1200, true); }, 'top'],
+        ['6', WL, function () { return strip(card, 0, H * 0.86, W, H * 0.14, 1500, false); }, 'foot'],
+        ['6', WL, function () { return strip(card, 0, H * 0.86, W, H * 0.14, 1500, true); }, 'foot'],
+        ['7', WL, function () { return strip(card, 0, H * 0.9, W * 0.5, H * 0.1, 1300, true); }, 'foot'],
+        ['7', WL, function () { return strip(card, W * 0.5, H * 0.9, W * 0.5, H * 0.1, 1300, true); }, 'foot'],
+        ['11', '', function () { return strip(card, 0, 0, W, H * 0.3, 1200, true); }, 'top']
+      ];
+      return plan.reduce(function (p, st, k) {
+        return p.then(function () { var m = document.getElementById('sc-prog'); if (m) m.textContent = ' ' + (k + 1) + '/' + plan.length; return pass(st[0], st[1], st[2](), st[3]); });
+      }, Promise.resolve());
     }).then(function () {
       var foot = { num: '', total: '', set: '' };
       foots.forEach(function (t) { var f = parseFoot(t); if (!foot.num && f.num) { foot.num = f.num; foot.total = f.total; } if (!foot.total && f.total) foot.total = f.total; if (!foot.set && f.set) foot.set = f.set; });
@@ -1041,14 +1057,11 @@
     if (SC.mode === 'one') { scClose(); toast(BY[slot].n + ' adicionada'); return; }
     toast(BY[slot].n + ' adicionada'); scIdle();
   }
-  function scProcess(src, crop) {
+  function scProcess(card) {
     if (SC.busy) return; SC.busy = true; var seq = ++SC.seq;
-    // cartaz: recorte no formato da carta
-    var card = document.createElement('canvas'); card.width = 760; card.height = Math.round(760 * 88 / 63);
-    var cx = card.getContext('2d'); cx.drawImage(src, crop.x, crop.y, crop.w, crop.h, 0, 0, card.width, card.height);
     var fz = scEl('sc-frozen'); fz.width = card.width; fz.height = card.height; fz.getContext('2d').drawImage(card, 0, 0); fz.hidden = false;
     var v = scEl('sc-video'); try { v.pause(); } catch (e) {}
-    scPanel('<p class="sc-msg"><span class="spin" aria-hidden="true"></span> ' + (SC.worker ? 'Lendo a carta…' : 'Preparando o leitor (só na primeira vez, pode levar alguns segundos)…') + '</p>');
+    scPanel('<p class="sc-msg"><span class="spin" aria-hidden="true"></span> ' + (SC.worker ? 'Lendo a carta…<span id="sc-prog"></span>' : 'Preparando o leitor (só na primeira vez, pode levar alguns segundos)…') + '</p>');
     readCard(card).then(function (r) {
       if (seq !== SC.seq) return null;
       var mon = matchMon(r.words); SC.raw = r.raw;
@@ -1061,13 +1074,37 @@
       scManual({ msg: e && e.message === 'ocr' ? 'Não consegui baixar o leitor de texto. Confira a internet ou digite abaixo.' : 'Algo deu errado na leitura. Digite abaixo ou tente de novo.' });
     });
   }
+  // recorta a carta no tamanho original da câmera (até 1500 px de largura)
+  function cardCanvas(src, crop) {
+    var w = Math.round(Math.min(crop.w, 1500)), c = document.createElement('canvas'); c.width = w; c.height = Math.round(w * 88 / 63);
+    var x = c.getContext('2d'); x.imageSmoothingQuality = 'high'; x.drawImage(src, crop.x, crop.y, crop.w, crop.h, 0, 0, c.width, c.height);
+    return c;
+  }
+  // nitidez: quanto maior, menos tremido/desfocado (variação de contraste nas faixas de nome e número)
+  function sharp(c) {
+    var t = 0, W = c.width, H = c.height;
+    [[0, 0, W, H * 0.15], [0, H * 0.88, W, H * 0.12]].forEach(function (b) {
+      var s = document.createElement('canvas'); s.width = 400; s.height = Math.max(8, Math.round(b[3] * 400 / b[2]));
+      var x = s.getContext('2d'); x.drawImage(c, b[0], b[1], b[2], b[3], 0, 0, s.width, s.height);
+      try { var d = x.getImageData(0, 0, s.width, s.height).data, i, p, q, a = 0; for (i = 0; i < d.length - 4 * s.width; i += 4) { p = d[i]; q = d[i + 4] - p; a += q * q + (d[i + 4 * s.width] - p) * (d[i + 4 * s.width] - p); } t += a / (d.length / 4); } catch (e) {}
+    });
+    return t;
+  }
   function scShoot() {
     var v = scEl('sc-video'); if (!v || !v.videoWidth || SC.busy) return;
     var box = scEl('sc-cam').getBoundingClientRect(), g = scEl('sc-guide').getBoundingClientRect();
     var s = Math.max(box.width / v.videoWidth, box.height / v.videoHeight), ox = (box.width - v.videoWidth * s) / 2, oy = (box.height - v.videoHeight * s) / 2;
     var crop = { x: (g.left - box.left - ox) / s, y: (g.top - box.top - oy) / s, w: g.width / s, h: g.height / s };
     crop.x = Math.max(0, crop.x); crop.y = Math.max(0, crop.y); crop.w = Math.min(crop.w, v.videoWidth - crop.x); crop.h = Math.min(crop.h, v.videoHeight - crop.y);
-    scProcess(v, crop);
+    // tira 4 quadros em ~0,4 s e usa o mais nítido
+    SC.busy = true; scPanel('<p class="sc-msg"><span class="spin" aria-hidden="true"></span> Segure firme…</p>');
+    var best = null, k = 0;
+    (function grab() {
+      var c = cardCanvas(v, crop), sh = sharp(c);
+      if (!best || sh > best.sh) best = { c: c, sh: sh };
+      if (++k < 4) return setTimeout(grab, 110);
+      SC.busy = false; scProcess(best.c);
+    })();
   }
   function scFromFile(file) {
     if (!file || SC.busy) return;
@@ -1076,7 +1113,7 @@
       // foto de galeria: usa a imagem toda, ajustando para a proporção da carta (centro)
       var W = img.naturalWidth, H = img.naturalHeight, w = W, h = H, r = 63 / 88;
       if (W / H > r) { w = H * r; } else { h = W / r; }
-      scProcess(img, { x: (W - w) / 2, y: (H - h) / 2, w: w, h: h }); URL.revokeObjectURL(url);
+      scProcess(cardCanvas(img, { x: (W - w) / 2, y: (H - h) / 2, w: w, h: h })); URL.revokeObjectURL(url);
     };
     img.onerror = function () { toast('Não consegui abrir essa foto'); URL.revokeObjectURL(url); };
     img.src = url;
@@ -1084,26 +1121,15 @@
   function scStartCam() {
     stopCam();
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { SC.stream = null; return scIdle(); }
-    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }).then(function (st) {
+    navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 3840 }, height: { ideal: 2160 } }, audio: false }).then(function (st) {
       if (!SC.open) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
-      SC.stream = st; var v = scEl('sc-video'); v.srcObject = st; v.setAttribute('playsinline', ''); v.muted = true; v.play().catch(function () {});
-      scEl('sc-cam').classList.remove('off'); SC.torch = false; scTorchUi(); if (!SC.cands.length && !SC.busy) scIdle();
+      SC.stream = st; var v = scEl('sc-video'); try { var tr = st.getVideoTracks()[0], cp = tr.getCapabilities ? tr.getCapabilities() : {}; if (cp.focusMode && cp.focusMode.indexOf('continuous') >= 0) tr.applyConstraints({ advanced: [{ focusMode: 'continuous' }] }).catch(function () {}); } catch (e) {} v.srcObject = st; v.setAttribute('playsinline', ''); v.muted = true; v.play().catch(function () {});
+      scEl('sc-cam').classList.remove('off'); if (!SC.cands.length && !SC.busy) scIdle();
     }, function () {
       SC.stream = null; scEl('sc-cam').classList.add('off');
       scEl('sc-cam').querySelector('.sc-hint').textContent = 'A câmera não abriu. Use “Tirar foto” (abre a câmera do celular) ou digite.';
       scIdle();
     });
-  }
-  // lanterna (flash): só aparece se o aparelho/navegador permitir (Android/Chrome sim; iPhone/Safari não libera)
-  function scTorchUi() {
-    var t = SC.stream && SC.stream.getVideoTracks()[0], ok = false;
-    try { ok = !!(t && t.getCapabilities && t.getCapabilities().torch); } catch (e) {}
-    var bt = scEl('sc-torch'); bt.hidden = !ok; bt.setAttribute('aria-pressed', SC.torch ? 'true' : 'false');
-  }
-  function scTorch() {
-    var t = SC.stream && SC.stream.getVideoTracks()[0]; if (!t) return;
-    var on = !SC.torch;
-    t.applyConstraints({ advanced: [{ torch: on }] }).then(function () { SC.torch = on; scTorchUi(); }, function () { toast('Este aparelho não liberou o flash'); });
   }
   function stopCam() { if (SC.stream) { SC.stream.getTracks().forEach(function (t) { t.stop(); }); SC.stream = null; } var v = scEl('sc-video'); if (v) v.srcObject = null; }
   function scOpen() {
@@ -1127,7 +1153,6 @@
     var a = b.getAttribute('data-sc');
     if (a === 'close') return scClose();
     if (a === 'shoot') return scShoot();
-    if (a === 'torch') return scTorch();
     if (a === 'pickfile') return scEl('sc-file').click();
     if (a === 'again') { SC.seq++; return scIdle(); }
     if (a === 'manual') { SC.seq++; return scManual(SC.info || {}); }
@@ -1145,7 +1170,7 @@
     if (e.target && e.target.id === 'sc-file') { var f = e.target.files && e.target.files[0]; e.target.value = ''; scFromFile(f); }
   });
   document.addEventListener('visibilitychange', function () { if (document.hidden && SC.open) stopCam(); else if (!document.hidden && SC.open && !SC.stream && !SC.busy) scStartCam(); });
-  window.__scan = { parseFoot: parseFoot, matchMon: matchMon, lev: lev };
+  window.__scan = { parseFoot: parseFoot, matchMon: matchMon, lev: lev, strip: strip };
 
   /* ---------- rota e início ---------- */
   var VIEWS = ['colecao', 'vitrine', 'lista', 'mais'];
