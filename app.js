@@ -92,6 +92,29 @@
     heart: '<svg viewBox="0 0 24 24" fill="#fff"><path d="M12 21s-7.5-4.6-9.5-9.2C1.2 8.6 3 5.5 6.2 5.5c2 0 3.2 1.1 3.8 2.2.6-1.1 1.8-2.2 3.8-2.2 3.2 0 5 3.1 3.7 6.3C19.5 16.4 12 21 12 21z"/></svg>'
   };
 
+
+  /* ---------- mapas das regiões: contornos simplificados do lugar real que inspirou cada uma (lon, lat) ---------- */
+  var MAPS = {
+    1: { c: '#e5383b', sub: 'Japão · Kantō', r: [[[138.5,36.8],[139.4,37.0],[139.9,36.9],[140.3,36.9],[140.6,36.2],[140.9,35.7],[140.4,35.2],[139.85,34.9],[139.7,35.2],[139.6,35.3],[139.2,35.2],[139.0,35.2],[138.9,35.5],[138.6,35.6],[138.5,36.0]]] },
+    2: { c: '#d99a1f', sub: 'Japão · Kansai', r: [[[134.3,35.6],[135.5,35.6],[135.9,35.5],[136.2,35.7],[136.4,35.3],[136.9,34.8],[136.8,34.3],[136.3,34.1],[135.9,33.5],[135.2,33.5],[135.1,33.9],[135.2,34.3],[135.4,34.6],[134.8,34.7],[134.3,34.6],[134.3,35.0]]] },
+    3: { c: '#1f9d6a', sub: 'Japão · Kyūshū', r: [[[130.9,33.9],[131.7,33.6],[131.9,32.7],[131.4,31.4],[130.7,31.0],[130.2,31.3],[130.2,32.2],[129.7,32.6],[129.8,33.3],[130.3,33.6]]] },
+    4: { c: '#4a73d9', sub: 'Japão · Hokkaido', r: [[[140.0,41.4],[140.9,41.2],[140.5,42.2],[141.4,42.6],[142.0,42.3],[143.3,42.0],[144.4,42.9],[145.8,43.4],[145.3,44.1],[144.4,44.0],[142.9,44.6],[141.9,45.5],[141.7,45.0],[141.6,43.9],[141.3,43.2],[140.4,43.3],[139.9,42.7],[140.2,42.0]]] },
+    5: { c: '#6b7280', sub: 'Nova York · EUA', r: [[[-74.02,40.70],[-73.97,40.71],[-73.93,40.80],[-73.91,40.87],[-73.93,40.88],[-73.97,40.79],[-74.01,40.75]], [[-73.99,40.57],[-73.75,40.58],[-73.73,40.74],[-73.78,40.80],[-73.83,40.85],[-73.80,40.88],[-73.88,40.80],[-73.95,40.70],[-73.99,40.66]], [[-74.25,40.50],[-74.05,40.58],[-74.07,40.64],[-74.2,40.64]]] },
+    6: { c: '#8b5cf6', sub: 'França', r: [[[2.5,51.1],[1.6,50.9],[1.6,50.2],[0.1,49.7],[-1.3,49.7],[-1.9,49.7],[-1.6,48.7],[-2.7,48.6],[-3.6,48.8],[-4.7,48.4],[-4.3,47.9],[-2.8,47.5],[-2.3,47.2],[-1.9,46.7],[-1.2,46.2],[-1.2,45.6],[-1.2,44.7],[-1.5,43.5],[-0.7,43.3],[0.7,42.8],[1.7,42.5],[3.1,42.4],[3.1,43.1],[4.0,43.5],[4.8,43.4],[6.0,43.1],[7.5,43.8],[7.0,44.3],[6.8,45.0],[7.0,45.9],[6.1,46.4],[6.9,47.5],[7.6,47.6],[8.2,48.9],[6.8,49.2],[5.9,49.5],[4.8,50.1],[4.2,49.9],[3.1,50.8]]] },
+    7: { c: '#06b6d4', sub: 'Havaí', r: [[[-159.8,22.2],[-159.4,22.2],[-159.3,21.9],[-159.6,21.9]], [[-158.3,21.6],[-158.0,21.7],[-157.7,21.3],[-158.1,21.3]], [[-157.3,21.2],[-156.7,21.15],[-156.8,21.05],[-157.3,21.1]], [[-156.7,20.9],[-156.4,20.9],[-156.0,20.7],[-156.4,20.6],[-156.7,20.8]], [[-155.9,20.2],[-155.1,19.7],[-154.8,19.5],[-155.7,18.95],[-156.0,19.7]]] },
+    8: { c: '#e11d8d', sub: 'Grã-Bretanha', r: [[[-5.7,50.1],[-4.2,50.4],[-3.4,50.6],[-1.9,50.7],[0.3,50.8],[1.4,51.2],[0.9,51.5],[1.7,52.6],[0.3,52.9],[0.0,53.6],[-0.1,54.0],[-1.2,54.5],[-1.6,55.3],[-2.0,55.8],[-3.0,56.0],[-2.0,57.0],[-1.8,57.6],[-3.3,57.7],[-4.0,57.5],[-3.1,58.6],[-5.0,58.6],[-5.7,57.5],[-5.6,56.5],[-5.2,55.4],[-4.8,55.0],[-3.1,54.9],[-3.4,54.2],[-2.9,53.4],[-3.2,53.3],[-4.5,53.3],[-4.2,52.8],[-4.9,52.2],[-4.2,51.6],[-3.0,51.5],[-3.1,51.2],[-4.2,51.2],[-5.3,50.7]]] },
+    9: { c: '#f97316', sub: 'Península Ibérica', r: [[[-9.0,43.2],[-8.0,43.7],[-5.0,43.6],[-1.8,43.4],[-0.7,43.0],[0.7,42.8],[1.7,42.5],[3.2,42.4],[3.0,41.9],[0.9,41.0],[-0.3,39.5],[0.0,38.8],[-0.7,37.6],[-2.1,36.7],[-4.4,36.7],[-5.4,36.1],[-6.3,36.6],[-7.4,37.2],[-8.9,37.0],[-8.8,38.5],[-9.5,38.7],[-8.8,40.2],[-8.9,41.8],[-8.8,42.8],[-9.3,43.0]]] }
+  };
+  function mapSvg(g) {
+    var M = MAPS[g]; if (!M) return '';
+    var all = []; M.r.forEach(function (ring) { all = all.concat(ring); });
+    var lat0 = all.reduce(function (a, p) { return a + p[1]; }, 0) / all.length, k = Math.cos(lat0 * Math.PI / 180);
+    var xs = all.map(function (p) { return p[0] * k; }), ys = all.map(function (p) { return -p[1]; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    var sc = Math.min(104 / ((x1 - x0) || 1), 84 / ((y1 - y0) || 1)), ox = (120 - (x1 - x0) * sc) / 2, oy = (100 - (y1 - y0) * sc) / 2;
+    var d = M.r.map(function (ring) { return 'M' + ring.map(function (p) { return ((p[0] * k - x0) * sc + ox).toFixed(1) + ' ' + ((-p[1] - y0) * sc + oy).toFixed(1); }).join('L') + 'Z'; }).join('');
+    return '<svg class="map" viewBox="0 0 120 100" aria-hidden="true"><path d="' + d + '" fill="' + M.c + '" fill-opacity=".2" stroke="' + M.c + '" stroke-width="2" stroke-linejoin="round"/></svg>';
+  }
   /* ---------- sprites (atlas com a arte do PDF) ---------- */
   function sp(m, cls) {
     var s = D.sp[m.sp];
@@ -239,18 +262,24 @@
     return h + '</ul>';
   }
   function viewMais(S) {
-    var h = '<section class="panel"><h2>Aparência</h2><p>Tema</p><div class="seg">' +
-      chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Automático', PREF.theme === 'auto', 'data-theme-set="auto"') +
-      '</div><p>Tamanho das cartas</p><div class="seg">' +
-      chip('Pequeno', PREF.size === 's', 'data-size-set="s"') + chip('Médio', PREF.size === 'm', 'data-size-set="m"') + chip('Grande', PREF.size === 'l', 'data-size-set="l"') +
-      '</div></section><section class="panel"><h2>Progresso por região</h2>';
-    D.regions.forEach(function (r) {
-      var b = S.byR[r.g];
-      h += '<div class="rbar"><span>' + esc(r.name) + '</span><div class="bar"><i style="width:' + pct(b.own, b.tot) + '%"></i></div><span>' + b.own + '/' + b.tot + '</span></div>';
-    });
-    h += '</section><section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>';
-    h += '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa. Quando não há imagem, aparece uma ficha com a arte do Pokémon.</p></section>';
-    return h;
+    var p = pct(S.own, S.tot);
+    var cards = D.regions.map(function (r) {
+      var bb = S.byR[r.g], pp = pct(bb.own, bb.tot), M = MAPS[r.g] || { c: 'var(--accent)', sub: '' };
+      return '<button class="reg-card" style="--rc:' + M.c + '" data-goto="' + r.g + '" aria-label="Ver ' + esc(r.name) + ' na coleção">' + mapSvg(r.g) +
+        '<span class="rn">' + esc(r.name) + '</span><span class="rs">' + esc(M.sub) + '</span><span class="rp">' + fmt(pp) + '<small>%</small></span>' +
+        '<span class="rc">' + bb.own + ' de ' + bb.tot + '</span><span class="bar"><i style="width:' + pp + '%"></i></span></button>';
+    }).join('');
+    var main = '<section class="reg-hero"><div><span class="rh-n">' + S.own + '<small> de ' + S.tot + '</small></span><span class="rh-s">cartas na coleção · ' + fmt(p) + '%</span></div>' +
+      '<div class="bar" aria-hidden="true"><i style="width:' + p + '%"></i></div></section>' +
+      '<h2 class="sec">Regiões</h2><div class="reg-grid">' + cards + '</div>';
+    var side = '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
+      chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Auto', PREF.theme === 'auto', 'data-theme-set="auto"') +
+      '</div></div><div class="opt"><span>Cartas</span><div class="seg">' +
+      chip('Pequenas', PREF.size === 's', 'data-size-set="s"') + chip('Médias', PREF.size === 'm', 'data-size-set="m"') + chip('Grandes', PREF.size === 'l', 'data-size-set="l"') +
+      '</div></div></section>' +
+      '<section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>' +
+      '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa.</p></section>';
+    return '<div class="mais"><div class="mais-main">' + main + '</div><aside class="mais-side">' + side + '</aside></div>';
   }
 
   var SUB = { colecao: 'Coleção TCG · 1.025 Pokémon', vitrine: 'Só as cartas que tenho', lista: 'Lista de compras', mais: 'Ajustes e dados' };
@@ -279,6 +308,7 @@
     if (m.own) inner = cardFrame(m, true) + imgTag(m, true) + layers(m);
     else inner = '<span class="card"><span class="art">' + sp(m, 'sp') + '</span><span class="cn" style="font-weight:500">Ainda não tenho</span></span>';
     big.innerHTML = inner;
+    var am = m.own && !NOIMG[m.id] ? sources(m, false)[0] : ''; $('#viewer').style.setProperty('--amb', am ? 'url("' + am + '")' : 'none');
     $('#v-pos').textContent = (V.i + 1) + ' de ' + V.ids.length;
     viewerInfo(m);
     loadMeta(m, function () { var cur = BY[V.ids[V.i]]; if (cur && cur.id === m.id && !$('#viewer').hidden) viewerInfo(cur); });
@@ -481,6 +511,7 @@
   /* ---------- eventos ---------- */
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;
+    if (t.hasAttribute('data-goto')) { UI.region = +t.getAttribute('data-goto'); UI.status = 'all'; location.hash = 'colecao'; return; }
     if (t.hasAttribute('data-theme-set')) { PREF.theme = t.getAttribute('data-theme-set'); savePref(); return render(); }
     if (t.hasAttribute('data-size-set')) { PREF.size = t.getAttribute('data-size-set'); savePref(); return render(); }
     if (t.hasAttribute('data-r')) { UI.region = +t.getAttribute('data-r'); return render(); }

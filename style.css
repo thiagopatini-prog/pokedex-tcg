@@ -340,3 +340,43 @@ body[data-view="vitrine"] .grid.vitrine { gap: 22px; padding-top: 22px; }
   .v-info { grid-column: 3; grid-row: 2; align-self: center; padding: 0 0 24px; margin: 0; max-width: none; }
   .v-info h2 { font-size: 44px; }
 }
+
+/* ===== versão 6: tela Mais ===== */
+.mais { display: grid; gap: 22px; padding-top: 8px; }
+.mais-side { display: flex; flex-direction: column; gap: 14px; }
+.mais-side .panel { margin-top: 0; }
+.reg-hero { padding: 18px 4px 4px; display: flex; flex-direction: column; gap: 12px; }
+.reg-hero > div:first-child { display: flex; flex-direction: column; gap: 2px; }
+.rh-n { font-family: var(--display); font-size: 56px; line-height: 1; font-weight: 700; letter-spacing: -1.5px; font-variant-numeric: tabular-nums; }
+.rh-n small { font-family: var(--body); font-size: 18px; font-weight: 400; color: var(--muted); letter-spacing: 0; }
+.rh-s { color: var(--muted); font-size: 14px; }
+.sec { margin: 18px 0 0; font-family: var(--display); font-size: 18px; font-weight: 600; }
+.mais-main { min-width: 0; display: flex; flex-direction: column; gap: 14px; }
+.reg-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 12px; }
+.reg-card { position: relative; text-align: left; padding: 14px 14px 16px; border-radius: 18px; border: 1px solid var(--line); background: var(--surface); display: flex; flex-direction: column; gap: 4px; overflow: hidden; min-height: 148px; transition: transform .18s ease, border-color .18s ease; }
+.reg-card .sp { position: absolute; right: -8px; top: -6px; width: 76px; opacity: .95; pointer-events: none; }
+.reg-card .rn { font-family: var(--display); font-size: 16px; font-weight: 600; }
+.reg-card .rp { font-family: var(--display); font-size: 34px; font-weight: 700; line-height: 1.1; margin-top: auto; font-variant-numeric: tabular-nums; }
+.reg-card .rp small { font-size: 16px; color: var(--muted); font-weight: 500; }
+.reg-card .rc { color: var(--muted); font-size: 12px; margin-bottom: 6px; }
+@media (hover: hover) { .reg-card:hover { transform: translateY(-3px); border-color: var(--accent-fg); } }
+.opt { display: flex; flex-direction: column; gap: 8px; }
+.opt > span { color: var(--muted); font-size: 13px; }
+.seg .chip { height: 36px; }
+@media (min-width: 720px) { .reg-grid { grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); } .reg-card { min-height: 168px; } .reg-card .sp { width: 92px; } }
+@media (min-width: 1000px) { .mais { grid-template-columns: minmax(0, 1fr) 340px; gap: 32px; align-items: start; } .mais-side { position: sticky; top: 84px; } }
+
+/* ===== versão 7: regiões com mapa ===== */
+.reg-card { --rc: var(--accent); }
+.reg-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: var(--rc); }
+.reg-card .map { position: absolute; right: 6px; top: 14px; width: 112px; height: 94px; pointer-events: none; }
+.reg-card .rn { margin-top: 4px; position: relative; }
+.reg-card .rs { color: var(--muted); font-size: 12px; position: relative; max-width: 60%; }
+.reg-card .bar i { background: var(--rc); }
+@media (min-width: 720px) { .reg-card .map { width: 128px; height: 108px; } }
+@media (max-width: 719px) { .reg-card .map { width: 84px; height: 72px; right: 2px; } .reg-card .rs { max-width: 55%; } }
+.reg-card { min-height: 176px; }
+.reg-card .map { top: 16px; right: 10px; width: 92px; height: 78px; }
+.reg-card .rs { max-width: 54%; }
+@media (min-width: 720px) { .reg-card { min-height: 190px; } .reg-card .map { width: 104px; height: 88px; top: 18px; } }
+@media (max-width: 719px) { .reg-card .map { width: 78px; height: 66px; right: 6px; } .reg-card { min-height: 170px; } }
