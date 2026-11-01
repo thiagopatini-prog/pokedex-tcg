@@ -51,6 +51,62 @@
       function (e) { SYNC.busy = false; syncState('Não sincronizou: ' + (e && e.message || 'erro') + '. Tente de novo.'); });
   }
 
+  /* ---------- cópia das imagens no seu servidor (Storage privado do Supabase) ---------- */
+  var MIR = {}, MIRK = 'pktcg.mir', MIRP = { run: false, done: 0, total: 0, ok: 0, fail: 0 }, mirQ = [], mirBusy = 0, mirT = null;
+  try { JSON.parse(localStorage.getItem(MIRK) || '[]').forEach(function (p) { MIR[p] = 1; }); } catch (e) {}
+  function mirSave() { clearTimeout(mirT); mirT = setTimeout(function () { try { localStorage.setItem(MIRK, JSON.stringify(Object.keys(MIR))); } catch (e) {} }, 800); }
+  function mirUI() { if (UI && UI.view === 'mais' && $('#viewer').hidden && $('#sheet').hidden) render(); }
+  // baixa a imagem da fonte original e guarda no servidor; resolve se a cópia existe no fim
+  function mirrorUrl(url) {
+    var p = DB.imgPath(url); if (MIR[p]) return Promise.resolve(true);
+    return fetch(url).then(function (r) { if (!r.ok) throw new Error(r.status); return r.blob(); }).then(function (b) {
+      if (!b.size || !/^image\//.test(b.type)) throw new Error('não é imagem');
+      return DB.imgPut(p, b);
+    }).then(function () { MIR[p] = 1; mirSave(); return true; });
+  }
+  function mirEnqueue(url) {
+    if (!window.DB || !DB.user() || !/^https:/.test(url) || MIR[DB.imgPath(url)] || mirQ.indexOf(url) >= 0) return;
+    mirQ.push(url); mirPump();
+  }
+  function mirPump() {
+    while (mirBusy < 2 && mirQ.length) {
+      mirBusy++;
+      mirrorUrl(mirQ.shift()).catch(function () {}).then(function () { mirBusy--; mirPump(); });
+    }
+  }
+  function mirrorAll() {
+    if (MIRP.run || !window.DB || !DB.user()) return;
+    var jobs = [];
+    Object.keys(BY).forEach(function (id) {
+      var m = BY[id]; if (!m.own) return;
+      [false, true].forEach(function (hi) { var s = sources(m, hi); if (s.length) jobs.push(s); });
+    });
+    MIRP = { run: true, done: 0, total: jobs.length, ok: 0, fail: 0 }; mirUI();
+    var cand = {}; jobs.forEach(function (s) { s.forEach(function (u) { cand[DB.imgPath(u)] = 1; }); });
+    var keys = Object.keys(cand).filter(function (p) { return !MIR[p]; }), chunks = [], i;
+    for (i = 0; i < keys.length; i += 100) chunks.push(keys.slice(i, i + 100));
+    function start() {
+      var idx = 0, active = 0;
+      function tryN(s, k) { if (k >= s.length) return Promise.resolve(false); return mirrorUrl(s[k]).then(function () { return true; }, function () { return tryN(s, k + 1); }); }
+      function next() {
+        if (idx >= jobs.length && active === 0) { MIRP.run = false; mirSave(); mirUI(); return; }
+        while (active < 3 && idx < jobs.length) {
+          (function (s) {
+            active++;
+            var has = s.some(function (u) { return MIR[DB.imgPath(u)]; });
+            (has ? Promise.resolve(true) : tryN(s, 0)).then(function (ok) { MIRP.done++; if (ok) MIRP.ok++; else MIRP.fail++; }).then(function () { active--; if (MIRP.done % 10 === 0) mirUI(); next(); });
+          })(jobs[idx++]);
+        }
+      }
+      next();
+    }
+    // antes de copiar, vê o que já está no servidor (enviado por outro aparelho)
+    (function chk(j) {
+      if (j >= chunks.length) return start();
+      DB.imgSign(chunks[j]).then(function (o) { Object.keys(o).forEach(function (p) { MIR[p] = 1; }); chk(j + 1); }, function () { chk(j + 1); });
+    })(0);
+  }
+
   /* ---------- aparência: tema e tamanho das cartas ---------- */
   var PREF = { theme: 'dark', size: 'm' };
   try { PREF.theme = localStorage.getItem('pktcg.theme') || 'dark'; PREF.size = localStorage.getItem('pktcg.size') || 'm'; } catch (e) {}
@@ -174,7 +230,7 @@
   function imgTag(m, hi) {
     var s = NOIMG[m.id] ? [] : sources(m, hi);
     if (!s.length) return '';
-    return '<img class="real" loading="lazy" alt="" data-mid="' + esc(m.id) + '" src="' + esc(s[0]) + '" data-alt="' + esc(s.slice(1).join('|')) + '">';
+    return '<img class="real" loading="lazy" alt="" data-mid="' + esc(m.id) + '" src="' + esc(s[0]) + '" data-alt="' + esc(s.slice(1).join('|')) + '" data-all="' + esc(s.join('|')) + '">';
   }
 
   /* ---------- peças de HTML ---------- */
@@ -298,7 +354,12 @@
       '<h2 class="sec">Regiões</h2><div class="reg-grid">' + cards + '</div>';
     var u = window.DB && DB.user(), acct;
     if (u) {
-      acct = '<section class="panel"><h2>Conta</h2><p>Conectado como <b>' + esc(u.email || 'sua conta') + '</b>. Sua coleção é a mesma em todos os aparelhos em que você entrar.</p><p>' + esc(SYNC.msg || 'Pronto para sincronizar') + '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="syncnow">Sincronizar agora</button><button class="ghost-btn" data-act="signout">Sair</button></div></section>';
+      acct = '<section class="panel"><h2>Conta</h2><p>Conectado como <b>' + esc(u.email || 'sua conta') + '</b>. Sua coleção é a mesma em todos os aparelhos em que você entrar.</p><p>' + esc(SYNC.msg || 'Pronto para sincronizar') + '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="syncnow">Sincronizar agora</button><button class="ghost-btn" data-act="signout">Sair</button></div></section>' +
+        '<section class="panel"><h2>Imagens no seu servidor</h2><p>' +
+        (MIRP.run ? 'Copiando… ' + MIRP.done + ' de ' + MIRP.total + (MIRP.fail ? ' · ' + MIRP.fail + ' sem imagem' : '') :
+          MIRP.total ? 'Pronto: ' + MIRP.ok + ' de ' + MIRP.total + ' copiadas' + (MIRP.fail ? ' · ' + MIRP.fail + ' não encontradas' : '') + '.' :
+          'As imagens que você vê são copiadas sozinhas para o seu servidor (' + Object.keys(MIR).length + ' até agora). Para copiar todas as das suas cartas de uma vez, toque abaixo.') +
+        '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="mirror"' + (MIRP.run ? ' disabled' : '') + '>' + (MIRP.run ? 'Copiando…' : 'Copiar imagens agora') + '</button></div></section>';
     } else {
       acct = '<section class="panel"><h2>Conta</h2><p>Entre para ver a mesma coleção em todos os aparelhos. Sem senha: você recebe um link no e-mail.</p>' +
         '<div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" autocomplete="email" inputmode="email" value="' + esc(SYNC.email) + '" placeholder="voce@email.com"></div>' +
@@ -590,6 +651,7 @@
       DB.verifyCode(SYNC.sent, cd).then(function () { SYNC.sent = ''; SYNC.msg = ''; syncNow(); render(); }, function (e) { toast('Código inválido ou vencido'); });
       return;
     }
+    if (act === 'mirror') return mirrorAll();
     if (act === 'syncnow') return syncNow();
     if (act === 'signout') { DB.signOut().then(function () { ST.synced = false; persist(); SYNC.msg = ''; render(); toast('Você saiu da conta'); }); return; }
     if (act === 'filters') return openFilters();
@@ -632,14 +694,34 @@
     var alt = (t.getAttribute('data-alt') || '').split('|').filter(Boolean);
     if (alt.length) { t.setAttribute('data-alt', alt.slice(1).join('|')); t.src = alt[0]; return; }
     var mid = t.getAttribute('data-mid');
-    if (mid) {
-      NOIMG[mid] = 1;
-      var tl = t.closest('.tile');
-      if (tl && !tl.querySelector('.noimg')) tl.insertAdjacentHTML('beforeend', '<span class="tag noimg">Sem imagem</span>');
-      var cur = BY[V.ids[V.i]];
-      if (cur && cur.id === mid && !$('#viewer').hidden) viewerInfo(cur);
+    function giveUp() {
+      if (mid) {
+        NOIMG[mid] = 1;
+        var tl = t.closest('.tile');
+        if (tl && !tl.querySelector('.noimg')) tl.insertAdjacentHTML('beforeend', '<span class="tag noimg">Sem imagem</span>');
+        var cur = BY[V.ids[V.i]];
+        if (cur && cur.id === mid && !$('#viewer').hidden) viewerInfo(cur);
+      }
+      t.remove();
     }
-    t.remove();
+    // nenhuma fonte original funcionou: tenta a cópia guardada no seu servidor (se estiver logado)
+    var all = (t.getAttribute('data-all') || '').split('|').filter(Boolean);
+    if (!t.getAttribute('data-st') && all.length && window.DB && DB.user()) {
+      t.setAttribute('data-st', '1');
+      var ps = all.map(DB.imgPath);
+      DB.imgSign(ps).then(function (o) {
+        var k = ps.filter(function (p) { return o[p]; })[0];
+        if (k) { if (t.isConnected) t.src = o[k]; } else giveUp();
+      }, giveUp);
+      return;
+    }
+    giveUp();
+  }, true);
+  // imagem carregou da fonte original: guarda uma cópia no seu servidor (uma vez só, em segundo plano)
+  document.addEventListener('load', function (e) {
+    var t = e.target;
+    if (!t || !t.classList || !t.classList.contains('real') || t.getAttribute('data-st') || !window.DB || !DB.user()) return;
+    mirEnqueue(t.currentSrc || t.src);
   }, true);
 
   $('#btn-theme').addEventListener('click', function () { PREF.theme = resolveTheme() === 'light' ? 'dark' : 'light'; savePref(); if (UI.view === 'mais') render(); });

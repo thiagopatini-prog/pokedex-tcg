@@ -64,6 +64,31 @@
         else throw new Error('Link vencido ou já usado. Peça outro');
       });
     },
+    /* ---- imagens no seu Storage privado (bucket "cards") ---- */
+    // nome do arquivo a partir do endereço original da imagem (o mesmo endereço sempre dá o mesmo nome)
+    imgPath: function (url) {
+      var k = String(url).replace(/^https?:\/\//i, ''), h = 5381, i;
+      for (i = 0; i < k.length; i++) h = ((h << 5) + h + k.charCodeAt(i)) | 0;
+      return 'i/' + k.replace(/[^A-Za-z0-9._-]+/g, '_').slice(-120) + '_' + (h >>> 0).toString(36);
+    },
+    // devolve {caminho: endereço assinado} só para os arquivos que existem (vale por 1 hora)
+    imgSign: function (paths) {
+      if (!paths.length) return Promise.resolve({});
+      return ensure().then(function () {
+        return req('/storage/v1/object/sign/cards', { method: 'POST', auth: true, body: { expiresIn: 3600, paths: paths } });
+      }).then(function (list) {
+        var out = {}; (list || []).forEach(function (r) { if (r && r.signedURL && !r.error) out[r.path] = URL + '/storage/v1' + r.signedURL; });
+        return out;
+      });
+    },
+    imgPut: function (path, blob) {
+      return ensure().then(function () {
+        return fetch(URL + '/storage/v1/object/cards/' + path, { method: 'POST', headers: { apikey: KEY, Authorization: 'Bearer ' + S.access, 'Content-Type': blob.type || 'image/webp', 'x-upsert': 'false', 'cache-control': 'max-age=31536000' }, body: blob }).then(function (r) {
+          if (r.ok) return 'new';
+          return r.text().then(function (t) { if (r.status === 409 || /Duplicate|already exists/i.test(t)) return 'dup'; throw new Error('Storage ' + r.status); });
+        });
+      });
+    },
     signOut: function () { var p = S ? req('/auth/v1/logout', { method: 'POST', auth: true }).catch(function () {}) : Promise.resolve(); store(null); return p; },
     pull: function () {
       return ensure().then(function () { return req('/rest/v1/collection_state?select=data,t&limit=1', { auth: true }); }).then(function (rows) { return rows && rows[0] ? rows[0] : null; });
