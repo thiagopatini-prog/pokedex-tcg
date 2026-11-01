@@ -23,9 +23,33 @@
     var sv = JSON.parse(localStorage.getItem(KEY) || '{}');
     if (sv.wants) ST.wants = sv.wants;
     if (sv.edits) ST.edits = sv.edits;
-    ST.alt = !!sv.alt;
+    ST.alt = !!sv.alt; ST.t = sv.t || 0; ST.synced = !!sv.synced;
   } catch (e) {}
-  function save() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} }
+  function persist() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} }
+  function save() { ST.t = Date.now(); persist(); schedulePush(); }
+
+  /* ---------- sincronização (Supabase, via db.js) ---------- */
+  var SYNC = { msg: '', at: 0, busy: false, sent: '', email: '' }, pushTimer = null;
+  function schedulePush() { if (!window.DB || !DB.user()) return; clearTimeout(pushTimer); pushTimer = setTimeout(syncNow, 1500); }
+  function syncState(msg) { SYNC.msg = msg; if (UI && UI.view === 'mais' && $('#viewer').hidden && $('#sheet').hidden) render(); }
+  function syncNow() {
+    if (!window.DB || !DB.user() || SYNC.busy) return;
+    SYNC.busy = true; syncState('Sincronizando…');
+    DB.pull().then(function (row) {
+      var mine = { wants: ST.wants, edits: ST.edits, alt: ST.alt };
+      if (!row) { ST.synced = true; ST.t = ST.t || Date.now(); persist(); return DB.push(mine, ST.t); }
+      var rd = row.data || {}, rt = +row.t || 0;
+      if (!ST.synced) { // primeira vez neste aparelho: junta o que já existe aqui com o que veio da conta
+        var w = (rd.wants || []).slice(); ST.wants.forEach(function (id) { if (w.indexOf(id) < 0) w.push(id); });
+        ST.edits = Object.assign({}, rd.edits || {}, ST.edits); ST.wants = w; ST.alt = !!(ST.alt || rd.alt);
+        ST.synced = true; ST.t = Date.now(); persist(); return DB.push({ wants: ST.wants, edits: ST.edits, alt: ST.alt }, ST.t);
+      }
+      if (rt > ST.t) { ST.wants = rd.wants || []; ST.edits = rd.edits || {}; ST.alt = !!rd.alt; ST.t = rt; persist(); return null; }
+      if (ST.t > rt) return DB.push(mine, ST.t);
+      return null;
+    }).then(function () { SYNC.busy = false; SYNC.at = Date.now(); syncState('Sincronizado às ' + new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })); render(); },
+      function (e) { SYNC.busy = false; syncState('Não sincronizou: ' + (e && e.message || 'erro') + '. Tente de novo.'); });
+  }
 
   /* ---------- aparência: tema e tamanho das cartas ---------- */
   var PREF = { theme: 'dark', size: 'm' };
@@ -272,7 +296,17 @@
     var main = '<section class="reg-hero"><div><span class="rh-n">' + S.own + '<small> de ' + S.tot + '</small></span><span class="rh-s">cartas na coleção · ' + fmt(p) + '%</span></div>' +
       '<div class="bar" aria-hidden="true"><i style="width:' + p + '%"></i></div></section>' +
       '<h2 class="sec">Regiões</h2><div class="reg-grid">' + cards + '</div>';
-    var side = '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
+    var u = window.DB && DB.user(), acct;
+    if (u) {
+      acct = '<section class="panel"><h2>Conta</h2><p>Conectado como <b>' + esc(u.email || 'sua conta') + '</b>. Sua coleção é a mesma em todos os aparelhos em que você entrar.</p><p>' + esc(SYNC.msg || 'Pronto para sincronizar') + '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="syncnow">Sincronizar agora</button><button class="ghost-btn" data-act="signout">Sair</button></div></section>';
+    } else {
+      acct = '<section class="panel"><h2>Conta</h2><p>Entre para ver a mesma coleção em todos os aparelhos. Sem senha: você recebe um link no e-mail.</p>' +
+        '<div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" autocomplete="email" inputmode="email" value="' + esc(SYNC.email) + '" placeholder="voce@email.com"></div>' +
+        '<button class="primary" data-act="sendlink">Enviar link de acesso</button>' +
+        (SYNC.sent ? '<p>Link enviado para <b>' + esc(SYNC.sent) + '</b>. Abra o e-mail neste aparelho. Se o e-mail trouxer um código, digite aqui:</p><div class="field"><label for="a-code">Código do e-mail</label><input id="a-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div><button class="ghost-btn" data-act="verify">Entrar com o código</button>' : '') +
+        (SYNC.msg ? '<p>' + esc(SYNC.msg) + '</p>' : '') + '</section>';
+    }
+    var side = acct + '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
       chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Auto', PREF.theme === 'auto', 'data-theme-set="auto"') +
       '</div></div><div class="opt"><span>Cartas</span><div class="seg">' +
       chip('Pequenas', PREF.size === 's', 'data-size-set="s"') + chip('Médias', PREF.size === 'm', 'data-size-set="m"') + chip('Grandes', PREF.size === 'l', 'data-size-set="l"') +
@@ -535,6 +569,20 @@
       });
       return copyText(txt, 'Lista copiada');
     }
+    if (act === 'sendlink') {
+      var em = ($('#a-email').value || '').trim(); if (!/^\S+@\S+\.\S+$/.test(em)) return toast('Digite um e-mail válido');
+      SYNC.email = em; toast('Enviando…');
+      DB.sendLink(em).then(function () { SYNC.sent = em; SYNC.msg = ''; render(); toast('Link enviado. Confira o e-mail'); },
+        function (e) { SYNC.msg = e.status === 429 ? 'Muitos e-mails em pouco tempo. Espere alguns minutos e tente de novo.' : 'Não foi possível enviar: ' + e.message; render(); });
+      return;
+    }
+    if (act === 'verify') {
+      var cd = ($('#a-code').value || '').replace(/\s+/g, ''); if (!cd) return toast('Digite o código');
+      DB.verifyCode(SYNC.sent, cd).then(function () { SYNC.sent = ''; SYNC.msg = ''; syncNow(); render(); }, function (e) { toast('Código inválido ou vencido'); });
+      return;
+    }
+    if (act === 'syncnow') return syncNow();
+    if (act === 'signout') { DB.signOut().then(function () { ST.synced = false; persist(); SYNC.msg = ''; render(); toast('Você saiu da conta'); }); return; }
     if (act === 'filters') return openFilters();
     if (act === 'clearfilters') { UI.fin = ''; UI.set = ''; UI.noimg = false; ST.alt = false; save(); render(); return openFilters(); }
     if (act === 'present') return startPresent();
@@ -637,7 +685,14 @@
   }
   window.addEventListener('hashchange', route);
   applyPrefs();
+  if (window.DB) {
+    var back = DB.consumeHash();
+    if (back) { if (back.ok) toast('Você entrou na conta'); else SYNC.msg = back.error; }
+  }
   route();
+  if (window.DB && DB.user()) syncNow();
+  document.addEventListener('visibilitychange', function () { if (!document.hidden) syncNow(); });
+  window.addEventListener('online', syncNow);
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
