@@ -870,6 +870,11 @@
     if (m) { out.num = String(parseInt(m[1], 10)); out.total = String(parseInt(m[2], 10)); }
     var toks = t.split(/[^A-Z0-9]+/).filter(Boolean), i;
     for (i = 0; i < toks.length; i++) { if (TDX[toks[i]]) { out.set = toks[i]; break; } if (/^[A-Z]{2,4}$/.test(toks[i].replace(/PT$/, '')) && TDX[toks[i].replace(/PT$/, '')]) { out.set = toks[i].replace(/PT$/, ''); break; } }
+    if (!out.set) {
+      var cp = t.replace(/[^A-Z]/g, ''), ks = Object.keys(TDX).filter(function (x) { return /^[A-Z]{3,4}$/.test(x); }).sort(function (a, b) { return b.length - a.length; }), q;
+      for (q = 0; q < ks.length; q++) { if (cp.indexOf(ks[q] + 'PT') >= 0) { out.set = ks[q]; break; } }
+      if (!out.set) for (q = 0; q < ks.length; q++) { if (cp.indexOf(ks[q]) >= 0) { out.set = ks[q]; break; } }
+    }
     if (!out.num) { m = t.match(/\b([A-Z]{2,4})\s?0*(\d{1,3})\b/); if (m && TDX[m[1]]) { out.set = out.set || m[1]; out.num = String(parseInt(m[2], 10)); } }
     return out;
   }
@@ -880,6 +885,7 @@
       return SETINFO;
     }, function () { SETINFO = {}; return SETINFO; });
   }
+  function monOfCard(c) { var e = matchMon(String((c._en || c.name) || '').split(/\s+/).map(function (t) { return { t: t, h: 0 }; })); return e ? e.id : ''; }
   var REGIONAL = ['alola', 'galar', 'hisui', 'paldea'];
   // qual casa da Pokédex recebe a carta (forma regional → casa da forma)
   function slotFor(card, baseId) {
@@ -893,13 +899,21 @@
     return base.id;
   }
   // do que foi lido (ou digitado) até a lista de cartas possíveis
+  // sem o nome: procura pelo número e filtra pelas coleções que têm esse total de cartas
+  function byNumber(info, si) {
+    var n = +info.num, vs = ['eq:' + n, 'eq:' + String(n).padStart(2, '0'), 'eq:' + String(n).padStart(3, '0')], all = [];
+    return Promise.all(vs.map(function (v) { return fetchCards('localId=' + encodeURIComponent(v)).catch(function () { return []; }); })).then(function (rs) {
+      var seen = {}; rs.forEach(function (l) { l.forEach(function (c) { if (!seen[c.id]) { seen[c.id] = 1; all.push(c); } }); });
+      return all;
+    });
+  }
   function resolveCard(info, seq) {
     return loadSetInfo().then(function (si) {
       if (seq !== SC.seq) return null;
       var mon = info.monId ? nameIndex().filter(function (e) { return e.id === info.monId; })[0] : null;
       var nameQ = mon ? mon.n : (info.name || '');
-      if (!nameQ) return { mon: null, list: [] };
-      return fetchCards('name=' + encodeURIComponent(nameQ)).then(function (list) {
+      var q0 = nameQ ? fetchCards('name=' + encodeURIComponent(nameQ)) : byNumber(info, si);
+      return q0.then(function (list) {
         if (seq !== SC.seq) return null;
         list = prep(list);
         var steps = [], setIds = null, tot = info.total ? +info.total : 0, num = info.num ? +info.num : 0;
@@ -916,6 +930,7 @@
         if (!out) out = list;
         var mine = {}; knownSets().forEach(function (x) { mine[x] = 1; });
         out = out.slice().sort(function (a, b) { var ma = mine[a._code] ? 0 : 1, mb = mine[b._code] ? 0 : 1; return ma - mb || a._code.localeCompare(b._code) || a._num - b._num; });
+        if (!nameQ && !exact) out = [];
         return { mon: mon, list: out.slice(0, 18), exact: exact, more: out.length > 18 };
       });
     });
@@ -947,19 +962,28 @@
     return c;
   }
   function readCard(card) {
-    // card: canvas com a carta já recortada (vertical)
-    var W = card.width, H = card.height;
+    // várias leituras de partes diferentes da carta; junta o que cada uma achou
+    var W = card.width, H = card.height, tops = [], foots = [], raw = [];
+    function words(r) { var w = []; ((r.data && r.data.words) || []).forEach(function (x) { if (x.text && x.confidence > 20) w.push({ t: x.text, h: x.bbox ? x.bbox.y1 - x.bbox.y0 : 0 }); }); if (!w.length) String((r.data && r.data.text) || '').split(/\s+/).forEach(function (t) { if (t) w.push({ t: t, h: 0 }); }); return w; }
     return getWorker().then(function (w) {
-      return w.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '' }).then(function () {
-        return w.recognize(strip(card, 0, 0, W, H * 0.17, 1100));
-      }).then(function (top) {
-        var words = [];
-        ((top.data && top.data.words) || []).forEach(function (x) { if (x.text && x.confidence > 25) words.push({ t: x.text, h: x.bbox ? x.bbox.y1 - x.bbox.y0 : 0 }); });
-        if (!words.length) String((top.data && top.data.text) || '').split(/\s+/).forEach(function (t) { if (t) words.push({ t: t, h: 0 }); });
-        return w.setParameters({ tessedit_pageseg_mode: '6', tessedit_char_whitelist: '0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ' }).then(function () {
-          return w.recognize(strip(card, 0, H * 0.86, W, H * 0.14, 1100));
-        }).then(function (bot) { return { words: words, topText: (top.data && top.data.text) || '', foot: parseFoot((bot.data && bot.data.text) || ''), footText: (bot.data && bot.data.text) || '' }; });
-      });
+      function pass(psm, wl, canvas, kind) {
+        return w.setParameters({ tessedit_pageseg_mode: psm, tessedit_char_whitelist: wl }).then(function () { return w.recognize(canvas); }).then(function (r) {
+          raw.push(String((r.data && r.data.text) || '').replace(/\s+/g, ' ').trim());
+          if (kind === 'top') tops.push(words(r)); else foots.push((r.data && r.data.text) || '');
+        }, function () {});
+      }
+      var WL = '0123456789/ABCDEFGHIJKLMNOPQRSTUVWXYZ ';
+      return pass('6', '', strip(card, 0, 0, W, H * 0.17, 1100), 'top')
+        .then(function () { return pass('6', WL, strip(card, 0, H * 0.86, W, H * 0.14, 1300), 'foot'); })
+        .then(function () { return pass('6', '', strip(card, 0, H * 0.86, W, H * 0.14, 1300), 'foot'); })
+        .then(function () { return pass('7', WL, strip(card, 0, H * 0.9, W * 0.5, H * 0.1, 1200), 'foot'); })
+        .then(function () { return pass('7', WL, strip(card, W * 0.5, H * 0.9, W * 0.5, H * 0.1, 1200), 'foot'); })
+        .then(function () { return pass('11', '', strip(card, 0, 0, W, H * 0.3, 1100), 'top'); });
+    }).then(function () {
+      var foot = { num: '', total: '', set: '' };
+      foots.forEach(function (t) { var f = parseFoot(t); if (!foot.num && f.num) { foot.num = f.num; foot.total = f.total; } if (!foot.total && f.total) foot.total = f.total; if (!foot.set && f.set) foot.set = f.set; });
+      var all = []; tops.forEach(function (a) { all = all.concat(a); });
+      return { words: all, foot: foot, raw: raw.join(' ⏐ ') };
     });
   }
 
@@ -979,16 +1003,16 @@
       '<div class="field"><label for="sc-set">Coleção</label><input id="sc-set" autocapitalize="characters" autocomplete="off" value="' + esc(info.set || '') + '" placeholder="Ex.: MEG"></div>' +
       '<button class="primary" data-sc="research">Buscar</button></div>';
   }
-  function scManual(info) { SC.busy = false; scEl('sc-frozen').hidden = true; scPanel('<p class="sc-msg">' + esc(info.msg || 'Digite o que está na carta.') + '</p>' + scManualHtml(info || {}) + '<div class="sc-alt"><button class="ghost-btn" data-sc="again">Voltar à câmera</button></div>'); }
+  function scManual(info) { SC.busy = false; scEl('sc-frozen').hidden = true; info = info || {}; scPanel('<p class="sc-msg">' + esc(info.msg || 'Digite o que está na carta.') + '</p>' + scManualHtml(info) + (SC.raw ? '<details class="sc-raw"><summary>O que o app leu</summary><p>' + esc(SC.raw) + '</p></details>' : '') + '<div class="sc-alt"><button class="ghost-btn" data-sc="again">Voltar à câmera</button></div>'); }
   function scShowCands(res, info) {
     SC.cands = res.list; SC.info = info;
     if (!res.list.length) return scManual({ name: res.mon ? res.mon.n : info.name, num: info.num, set: info.set, msg: 'Não achei essa carta. Confira o nome, o número e a coleção.' });
     var sel = res.exact && res.list.length === 1 ? res.list[0] : (res.exact ? res.list[0] : null);
     SC.sel = sel ? sel.id : null;
-    var read = [res.mon ? res.mon.n : (info.name || '?'), info.num ? (info.num + (info.total ? '/' + info.total : '')) : '', info.set].filter(Boolean).join(' · ');
+    var read = [res.mon ? res.mon.n : (info.name || ''), info.num ? (info.num + (info.total ? '/' + info.total : '')) : '', info.set].filter(Boolean).join(' · ');
     var h = '<p class="sc-msg">Li: <b>' + esc(read || 'nada') + '</b> · ' + (res.exact ? (res.list.length === 1 ? 'achei 1 carta' : 'achei ' + res.list.length + ' cartas') : 'toque na sua carta') + '</p><div class="sc-cands">';
     res.list.forEach(function (c) {
-      var slot = slotFor(c, res.mon ? res.mon.id : (nameIndex().filter(function (e) { return norm(baseName(c._en || c.name)).indexOf(e.k) === 0; })[0] || {}).id), s = slot && BY[slot];
+      var slot = slotFor(c, res.mon ? res.mon.id : monOfCard(c)), s = slot && BY[slot];
       h += '<button type="button" class="sc-c" data-sc="pick" data-cid="' + esc(c.id) + '" aria-pressed="' + (SC.sel === c.id ? 'true' : 'false') + '"><span class="im">' + (c.image ? '<img alt="" src="' + esc(c.image + '/low.webp') + '" data-en="' + esc(c.image.replace('/pt/', '/en/') + '/low.webp') + '">' : '<span class="nopic">sem imagem</span>') + '</span><span class="cap">' + esc(c._code + ' · ' + c.localId) + (s && s.own ? '<small class="own">já tem ' + esc(s.set + ' ' + s.no) + '</small>' : '<small>' + esc(c.name) + '</small>') + '</span></button>';
     });
     h += '</div><div class="sc-actions"><div class="field fin"><label for="sc-fin">Acabamento</label><select id="sc-fin">' + FINS.map(function (f) { return '<option' + (f === (SC.fin || 'Normal') ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></div>' +
@@ -1004,7 +1028,7 @@
   }
   function scAdd() {
     var c = SC.cands.filter(function (x) { return x.id === SC.sel; })[0]; if (!c) return;
-    var monId = SC.mon ? SC.mon.id : (nameIndex().filter(function (e) { return norm(baseName(c._en || c.name)).indexOf(e.k) === 0; })[0] || {}).id;
+    var monId = SC.mon ? SC.mon.id : monOfCard(c);
     var slot = monId && slotFor(c, monId);
     if (!slot) return toast('Não sei em qual Pokémon colocar. Use “Corrigir” e digite o nome');
     var fin = scEl('sc-fin') ? scEl('sc-fin').value : 'Normal'; SC.fin = fin;
@@ -1027,11 +1051,10 @@
     scPanel('<p class="sc-msg"><span class="spin" aria-hidden="true"></span> ' + (SC.worker ? 'Lendo a carta…' : 'Preparando o leitor (só na primeira vez, pode levar alguns segundos)…') + '</p>');
     readCard(card).then(function (r) {
       if (seq !== SC.seq) return null;
-      var mon = matchMon(r.words);
+      var mon = matchMon(r.words); SC.raw = r.raw;
       var info = { monId: mon ? mon.id : '', name: mon ? mon.n : '', num: r.foot.num, total: r.foot.total, set: r.foot.set };
-      if (!mon && !info.num) return scManual({ msg: 'Não consegui ler essa. Tente com mais luz, sem reflexo, ou digite abaixo.' });
-      if (!mon) return scManual({ num: info.num, set: info.set, msg: 'Li o número (' + info.num + (info.total ? '/' + info.total : '') + '), mas não o nome. Digite o Pokémon:' });
-      scPanel('<p class="sc-msg"><span class="spin" aria-hidden="true"></span> Procurando ' + esc(mon.n) + '…</p>');
+      if (!mon && !(info.num && info.total)) return scManual({ num: info.num, set: info.set, msg: 'Não consegui ler essa. Tente mais perto, com luz e sem reflexo, ou digite abaixo.' });
+      scPanel('<p class="sc-msg"><span class="spin" aria-hidden="true"></span> Procurando ' + esc(mon ? mon.n : info.num + '/' + info.total) + '…</p>');
       return resolveCard(info, seq).then(function (res) { if (res) { SC.busy = false; scShowCands(res, info); } });
     }).catch(function (e) {
       SC.busy = false;
