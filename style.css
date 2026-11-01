@@ -388,3 +388,25 @@ body[data-view="vitrine"] .grid.vitrine { gap: 22px; padding-top: 22px; }
 .tile:has(img.real:not(.ok)), .big:has(img.real:not(.ok)) { background: linear-gradient(100deg, var(--surface2) 30%, var(--surface3, var(--line)) 50%, var(--surface2) 70%) 0 0 / 220% 100%; animation: shimmer 1.3s linear infinite; }
 @keyframes shimmer { to { background-position: -220% 0; } }
 @media (prefers-reduced-motion: reduce) { .tile:has(img.real:not(.ok)), .big:has(img.real:not(.ok)) { animation: none; } .tile img.real, .big img.real { transition: none; } }
+
+/* busca de carta no celular: dados recolhíveis, barra da carta escolhida, resultados maiores */
+.finder .h4btn { all: unset; box-sizing: border-box; display: flex; width: 100%; align-items: center; justify-content: space-between; cursor: pointer; font: inherit; font-weight: 600; min-height: 44px; }
+.finder .h4btn .chev { transition: transform .2s; color: var(--muted); }
+.finder.fields.collapsed .h4btn .chev { transform: rotate(-90deg); }
+.finder.fields.collapsed > :not(h4) { display: none; }
+@media (min-width: 900px) { .finder .h4btn { cursor: default; pointer-events: none; } .finder .h4btn .chev { display: none; } .finder.fields.collapsed > :not(h4) { display: flex; } }
+.sheet .box .foot { flex-wrap: wrap; }
+.selbar { flex: 1 1 100%; display: flex; align-items: center; gap: 10px; min-width: 0; padding-bottom: 2px; }
+.selbar img, .selbar .nopic { width: 36px; height: 50px; border-radius: 5px; object-fit: cover; background: var(--surface2); flex: none; display: flex; align-items: center; justify-content: center; color: var(--muted); }
+.selbar .who { display: flex; flex-direction: column; min-width: 0; }
+.selbar .who b { font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.selbar .who small { color: var(--muted); font-size: 12px; }
+.res .im .nopic { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; font-size: 11px; color: var(--muted); }
+@media (max-width: 899px) { .results { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; } .finder .row button { padding: 0 14px; } }
+@media (max-width: 899px) and (min-width: 460px) { .results { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+.sheet h3 .dexn { color: var(--muted); font-weight: 500; }
+.finder .found { margin: 0; font-size: 14px; font-weight: 600; color: var(--fg); }
+.finder .found:empty { display: none; }
+.sheet .box .foot .primary { min-height: 50px; font-size: 16px; }
+@media (max-width: 899px) { .finder .tools select { flex: 1 1 0; min-width: 0; text-overflow: ellipsis; } }

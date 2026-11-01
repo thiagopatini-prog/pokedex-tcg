@@ -209,7 +209,11 @@
   // Lista de endereços para tentar, em ordem: português e inglês, número com e sem zeros à esquerda.
   function sources(m, hi) {
     if (m.own && m.imgUrl) return [m.imgUrl];
-    if (m.own && m.img) return hi ? [m.img + '/high.webp', m.img + '/low.webp'] : [m.img + '/low.webp'];
+    if (m.own && m.img) {
+      var bases = [m.img]; if (/\/pt\//.test(m.img)) bases.push(m.img.replace('/pt/', '/en/')); // se a versão em português não existir, tenta a em inglês
+      var lst = []; (hi ? ['high', 'low'] : ['low']).forEach(function (q) { bases.forEach(function (b) { lst.push(b + '/' + q + '.webp'); }); });
+      return lst;
+    }
     if (!m.own || !m.set || !/^\d+$/.test(m.no || '')) return [];
     var o = (window.CARD_IMG || {})[m.set + '-' + m.no];
     if (o) return [o];
@@ -450,25 +454,31 @@
   function splitId(id) { var k = id.lastIndexOf('-'); return [id.slice(0, k), id.slice(k + 1)]; }
   function openSheet(id) {
     var m = BY[id], sets = knownSets();
-    var box = '<div class="box" role="dialog" aria-modal="true" aria-label="Cadastrar carta"><h3>' + esc(m.n) + ' · #' + pad(m.d) + '</h3><div class="body">' +
-      '<div class="finder" style="border:0;padding:0"><h4>1. Buscar a carta certa</h4><p class="hint">Digite o nome, e se quiser a coleção ou o número (ex.: “charmeleon mep” ou “charmeleon 79”). Toque na carta certa.</p>' +
+    var box = '<div class="box" role="dialog" aria-modal="true" aria-label="Cadastrar carta"><h3>' + (m.own ? 'Editar carta' : 'Adicionar carta') + ' · ' + esc(m.n) + ' <span class="dexn">#' + pad(m.d) + '</span></h3><div class="body">' +
+      '<div class="finder" style="border:0;padding:0"><h4>1. Escolha a carta</h4><p class="hint">Já busquei as cartas de ' + esc(baseName(m.n)) + '. Para refinar, digite também a coleção ou o número (ex.: “' + esc(baseName(m.n).toLowerCase()) + ' mep” ou “' + esc(baseName(m.n).toLowerCase()) + ' 79”).</p>' +
       '<div class="row"><input id="f-q" type="search" autocomplete="off" value="' + esc(baseName(m.n)) + '" aria-label="Nome da carta"><button data-sact="find" type="button">Buscar</button></div>' +
-      '<div class="tools" id="f-tools" hidden></div><p class="hint" id="f-msg"></p><div id="f-res" class="results" hidden></div><button type="button" class="ghost-btn more" data-sact="dex" hidden id="f-dex">Ver todas as cartas deste Pokémon</button></div>' +
-      '<div class="finder"><h4>2. Conferir os dados</h4>' +
+      '<div class="tools" id="f-tools" hidden></div><p class="found" id="f-msg" role="status" aria-live="polite"></p><div id="f-res" class="results" hidden></div><button type="button" class="ghost-btn more" data-sact="dex" hidden id="f-dex">Ver todas as cartas deste Pokémon</button></div>' +
+      '<div class="finder fields' + (window.innerWidth < 900 ? ' collapsed' : '') + '" id="f-fields"><h4><button type="button" class="h4btn" data-sact="fields" aria-expanded="' + (window.innerWidth < 900 ? 'false' : 'true') + '">2. Conferir os dados <span class="chev" aria-hidden="true">▾</span></button></h4>' +
       '<div class="field"><label for="s-set">Coleção (código)</label><input id="s-set" list="s-sets" autocapitalize="characters" autocomplete="off" placeholder="Ex.: MEG" value="' + esc(m.set) + '"><datalist id="s-sets">' + sets.map(function (s) { return '<option value="' + esc(s) + '">'; }).join('') + '</datalist></div>' +
       '<div class="field"><label for="s-no">Número da carta</label><input id="s-no" inputmode="numeric" autocomplete="off" placeholder="Ex.: 001" value="' + esc(m.no) + '"></div>' +
       '<div class="field"><label for="s-fin">Acabamento</label><select id="s-fin">' + FINS.map(function (f) { return '<option' + ((m.fin || 'Normal') === f ? ' selected' : '') + '>' + f + '</option>'; }).join('') + '</select></div>' +
       '<div class="field"><label for="s-url">Link da imagem (opcional, para quem não está na base)</label><input id="s-url" type="url" inputmode="url" autocomplete="off" placeholder="https://…" value="' + esc(m.imgUrl || '') + '"></div></div>' +
-      '</div><div class="foot"><button class="primary" data-sact="save" data-id="' + id + '">Salvar</button><button class="ghost-btn" data-sact="cancel">Cancelar</button></div></div>';
+      '</div><div class="foot"><div class="selbar" id="f-sel" hidden></div><button class="primary" data-sact="save" data-id="' + id + '" id="f-save">' + (m.own ? 'Salvar' : 'Adicionar') + '</button><button class="ghost-btn" data-sact="cancel">Cancelar</button></div></div>';
     FIND = { sel: null, set: '', no: '', list: {}, all: [], m: m }; SHEETKIND = 'edit';
-    var sh = $('#sheet'); sh.innerHTML = box; sh.hidden = false; $('#f-q').focus();
+    var sh = $('#sheet'); sh.innerHTML = box; sh.hidden = false;
+    runFind(); // já busca na hora; o teclado só abre se a pessoa tocar no campo
   }
   var STOP = { de: 1, do: 1, da: 1, forma: 1, form: 1, the: 1, of: 1 };
   function fetchCards(qs) {
     return Promise.all(['pt', 'en'].map(function (l) { return getJSON('https://api.tcgdex.net/v2/' + l + '/cards?' + qs + '&pagination:page=1&pagination:itemsPerPage=300').catch(function () { return null; }); })).then(function (rs) {
       if (!rs[0] && !rs[1]) throw new Error('offline');
       var seen = {}, list = [];
-      rs.forEach(function (r) { (r || []).forEach(function (c) { if (c && c.id && !seen[c.id]) { seen[c.id] = 1; list.push(c); } }); });
+      rs.forEach(function (r, li) { (r || []).forEach(function (c) {
+        if (!c || !c.id) return;
+        if (!seen[c.id]) { seen[c.id] = c; list.push(c); }
+        else if (!seen[c.id].image && c.image) seen[c.id].image = c.image; // a versão em português às vezes vem sem imagem; a em inglês tem
+        if (li === 1 && c.name) seen[c.id]._en = c.name;
+      }); });
       return list;
     });
   }
@@ -497,13 +507,14 @@
     });
     var more = list.length > 120; list = list.slice(0, 120);
     box.innerHTML = list.map(function (c) {
-      return '<button type="button" class="res" data-sact="pick" data-cid="' + esc(c.id) + '" aria-pressed="' + (FIND.sel && FIND.sel.id === c.id ? 'true' : 'false') + '"><span class="im">' + (c.image ? '<img loading="lazy" alt="' + esc(c.name) + '" src="' + esc(c.image + '/low.webp') + '">' : '') + '</span><span class="cap">' + esc(c._code + ' · ' + c.localId) + '<small>' + esc(c.name) + '</small></span></button>';
+      return '<button type="button" class="res" data-sact="pick" data-cid="' + esc(c.id) + '" aria-pressed="' + (FIND.sel && FIND.sel.id === c.id ? 'true' : 'false') + '"><span class="im">' + (c.image ? '<img loading="lazy" alt="' + esc(c.name) + '" src="' + esc(c.image + '/low.webp') + '" data-en="' + esc(c.image.replace('/pt/', '/en/') + '/low.webp') + '">' : '<span class="nopic">sem imagem na base</span>') + '</span><span class="cap">' + esc(c._code + ' · ' + c.localId) + '<small>' + esc(c.name) + '</small></span></button>';
     }).join('');
     box.hidden = !list.length;
     if (more) $('#f-msg').textContent += ' (mostrando 120; use o filtro de coleção)';
   }
+  var FINDSEQ = 0, findT = null;
   function runFind() {
-    var raw = $('#f-q').value.trim(), msg = $('#f-msg');
+    var raw = $('#f-q').value.trim(), msg = $('#f-msg'), seq = ++FINDSEQ;
     if (!raw) return;
     var words = raw.split(/\s+/), setW = '', numW = '', nameW = [];
     words.forEach(function (w) {
@@ -520,11 +531,12 @@
     (function next(i) {
       if (i >= cands.length) { showResults([], 'Nenhuma carta encontrada. Tente só o nome, ou toque em “Ver todas as cartas deste Pokémon”.'); return; }
       fetchCards('name=' + encodeURIComponent(cands[i])).then(function (list) {
+        if (seq !== FINDSEQ || !$('#f-q')) return; // veio uma busca mais nova
         list = prep(list);
         if (setW) { var ids = TDX[setW].map(function (p) { return p.split('/')[1]; }); list = list.filter(function (c) { return ids.indexOf(c._set) >= 0; }); }
         if (numW) list = list.filter(function (c) { return String(c._num) === numW; });
         if (!list.length) return next(i + 1);
-        showResults(list, list.length + ' cartas' + (i ? ' para “' + cands[i] + '”' : '') + '. Toque na certa.');
+        showResults(list, '✓ Encontrei ' + list.length + (list.length === 1 ? ' carta' : ' cartas') + (i ? ' para “' + cands[i] + '”' : '') + '. Toque na sua para ' + (FIND.m && FIND.m.own ? 'trocar' : 'adicionar') + '.');
       }, function () { msg.textContent = 'Não consegui buscar agora. Confira a internet e tente de novo.'; });
     })(0);
   }
@@ -534,7 +546,7 @@
     fetchCards('dexId=' + m.d).then(function (list) {
       list = prep(list);
       if (!list.length) return showResults([], 'Não achei cartas com esse número da Pokédex.');
-      showResults(list, list.length + ' cartas de #' + pad(m.d) + '. Toque na certa.');
+      showResults(list, '✓ Encontrei ' + list.length + ' cartas de #' + pad(m.d) + '. Toque na sua para ' + (m.own ? 'trocar' : 'adicionar') + '.');
     }, function () { msg.textContent = 'Não consegui buscar agora. Confira a internet e tente de novo.'; });
   }
   function pickCard(cid) {
@@ -543,7 +555,10 @@
     $('#s-set').value = c._code; $('#s-no').value = no; $('#s-url').value = '';
     FIND.sel = { id: cid, image: c.image || '' }; FIND.set = c._code; FIND.no = no;
     Array.prototype.forEach.call(document.querySelectorAll('.res'), function (b) { b.setAttribute('aria-pressed', b.getAttribute('data-cid') === cid ? 'true' : 'false'); });
-    $('#f-msg').textContent = 'Escolhida: ' + c._code + ' ' + no + '. Confira os dados e toque em Salvar.';
+    $('#f-msg').textContent = c.image ? '✓ Carta escolhida: ' + c._code + ' ' + no + '. Toque em ' + (FIND.m && FIND.m.own ? 'Salvar' : 'Adicionar') + ' para confirmar.' : 'Esta carta não tem imagem na base. Abra “Conferir os dados” e cole o link de uma imagem, ou escolha outra.';
+    var sv = $('#f-save'); if (sv) sv.textContent = (FIND.m && FIND.m.own ? 'Salvar ' : 'Adicionar ') + c._code + ' ' + no;
+    var sb = $('#f-sel');
+    if (sb) { sb.hidden = false; sb.innerHTML = (c.image ? '<img alt="" src="' + esc(c.image + '/low.webp') + '">' : '<span class="nopic">?</span>') + '<span class="who"><b>' + esc(c.name) + '</b><small>' + esc(c._code + ' · ' + no) + ' · ' + esc(($('#s-fin') && $('#s-fin').value) || 'Normal') + '</small></span>'; }
   }
   function openFilters() {
     var sets = knownSets();
@@ -568,7 +583,7 @@
     if (s.length > 3) s = s.replace(/PT$/, '');
     var url = ($('#s-url').value || '').trim();
     if (url && !/^https:\/\//i.test(url)) { toast('O link da imagem deve começar com https://'); return; }
-    if (!url && (!s || !n)) { toast('Preencha a coleção e o número'); return; }
+    if (!url && (!s || !n)) { toast('Preencha a coleção e o número'); var ff = $('#f-fields'); if (ff) { ff.classList.remove('collapsed'); var fb = ff.querySelector('.h4btn'); if (fb) fb.setAttribute('aria-expanded', 'true'); } return; }
     s = s || '—'; n = n || '—';
     if (/^\d{1,2}$/.test(n)) n = n.padStart(3, '0');
     var pick = FIND.sel && FIND.set === s && FIND.no === n ? FIND.sel : null;
@@ -695,12 +710,18 @@
     }
     var sa = t.getAttribute('data-sact');
     if (sa === 'cancel') return closeSheet();
+    if (sa === 'fields') { var ff = $('#f-fields'); if (ff) { var op = ff.classList.toggle('collapsed'); t.setAttribute('aria-expanded', op ? 'false' : 'true'); } return; }
     if (sa === 'find') return runFind();
     if (sa === 'dex') return runDex();
     if (sa === 'pick') return pickCard(t.getAttribute('data-cid'));
     if (sa === 'save') return saveSheet(t.getAttribute('data-id'));
     if (sa === 'download') return download();
     if (sa === 'copycsv') return copyText(buildCsv(), 'CSV copiado');
+  });
+  document.addEventListener('input', function (e) {
+    if (e.target.id !== 'f-q') return;
+    clearTimeout(findT);
+    if (e.target.value.trim().length >= 3) findT = setTimeout(function () { if ($('#f-q')) runFind(); }, 600); // busca sozinha depois de parar de digitar
   });
   document.addEventListener('change', function (e) {
     if (e.target.id === 'f-fin') { UI.fin = e.target.value; render(); }
@@ -710,6 +731,7 @@
   // imagem real que não carrega: tenta o próximo endereço; se acabar, some e deixa a ficha à mostra
   document.addEventListener('error', function (e) {
     var t = e.target;
+    if (t && t.tagName === 'IMG' && t.closest && t.closest('.res') && t.getAttribute('data-en')) { var en = t.getAttribute('data-en'); t.removeAttribute('data-en'); t.src = en; return; }
     if (!t || !t.classList || !t.classList.contains('real')) return;
     var alt = (t.getAttribute('data-alt') || '').split('|').filter(Boolean);
     if (alt.length) { t.setAttribute('data-alt', alt.slice(1).join('|')); t.src = alt[0]; return; }
