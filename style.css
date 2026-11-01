@@ -691,3 +691,23 @@ body[data-view="colecao"] .search { padding-bottom: 6px; }
   .nav button:hover { background: rgba(255,255,255,.14); }
   .nav button[aria-current="page"] { background: #fff; color: var(--hd); }
 }
+
+/* menu: vidro claro (opção B) — celular e computador */
+:root { --glass: rgba(255,255,255,.62); --glassb: rgba(255,255,255,.7); --glassfg: #1F2430; --glassmu: #4B5160; }
+:root[data-theme="dark"] { --glass: rgba(30,33,40,.6); --glassb: rgba(255,255,255,.12); --glassfg: #F2F3F5; --glassmu: #B4B9C4; }
+.nav ul { background: var(--glass); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); border: 1px solid var(--glassb); box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+.nav button { color: var(--glassmu); }
+.nav button:hover { background: rgba(128,128,128,.14); }
+.nav button[aria-current="page"] { background: var(--accent); color: #fff; }
+.nav button[aria-current="page"]::after { display: none; }
+@media (max-width: 899px) {
+  .nav { padding: 0 max(12px, env(safe-area-inset-right, 0px)) calc(10px + env(safe-area-inset-bottom, 0px)) max(12px, env(safe-area-inset-left, 0px)); }
+  .nav ul { width: 100%; max-width: 520px; padding: 6px; border-radius: 30px; }
+  .nav button { min-height: 54px; border-radius: 24px; flex: 1; min-width: 0; }
+  main { padding-block: 0 120px; }
+}
+@media (min-width: 900px) {
+  .nav ul { background: var(--glass); box-shadow: 0 6px 20px rgba(0,0,0,.18); }
+  .nav button { color: var(--glassfg); }
+  .nav button[aria-current="page"] { background: var(--accent); color: #fff; }
+}
