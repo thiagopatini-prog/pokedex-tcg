@@ -674,3 +674,20 @@ textarea#lt-in { border: 2px solid transparent; background: var(--bg2); font-wei
 @media (max-width: 719px) { .scroller.regions { scroll-padding-inline: 16px; } }
 .sheet .chip { background: var(--bg2); box-shadow: none; }
 .sheet .chip[aria-pressed="true"] { background: var(--chipsel); color: #fff; }
+
+/* busca aberta: a faixa vermelha continua sem corte entre cabeçalho, busca e progresso */
+.search { position: relative; z-index: 1; isolation: isolate; padding-block: 2px 16px; }
+.search::before { content: ""; position: absolute; z-index: -1; top: -2px; bottom: 0; left: 50%; width: 100vw; margin-left: -50vw; background: var(--hd); border-radius: 0 0 28px 28px; }
+body:has(#search:not([hidden])) .top::before { border-radius: 0; }
+body[data-view="colecao"] .search::before { border-radius: 0; }
+body[data-view="colecao"] .search { padding-bottom: 6px; }
+.search input { border: 0; box-shadow: 0 2px 8px rgba(0,0,0,.12); }
+.search input:focus { outline: 2px solid rgba(255,255,255,.7); outline-offset: 2px; }
+
+/* menu do desktop: pílula sólida (legível sobre as cartas ao rolar) */
+@media (min-width: 900px) {
+  .nav ul { background: color-mix(in srgb, var(--hd) 86%, #000); box-shadow: 0 6px 20px rgba(0,0,0,.28); }
+  .nav button { color: rgba(255,255,255,.92); }
+  .nav button:hover { background: rgba(255,255,255,.14); }
+  .nav button[aria-current="page"] { background: #fff; color: var(--hd); }
+}
