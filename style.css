@@ -576,16 +576,12 @@ body[data-view="colecao"] .top::before { border-radius: 0; }
 .tile.miss .tcn b { color: var(--muted); }
 @media (hover: hover) { .tile:hover { transform: translateY(-3px); } .tile:hover .tart .real, .tile:hover .tart .card { box-shadow: none; } }
 
-/* vitrine: escura, cartas grandes sem moldura branca */
-body[data-view="vitrine"] { --bg: #0F1114; --bg2: #16181C; --surface: #1B1E23; --surface2: #262A32; --surface3: #30353F; --fg: #F2F3F5; --muted: #A0A5B0; --seg: #262A32; background: #0F1114; color: var(--fg); }
-body[data-view="vitrine"] .chip { background: #1B1E23; color: #F2F3F5; box-shadow: none; }
-body[data-view="vitrine"] .chip[aria-pressed="true"] { background: var(--chipsel); }
-body[data-view="vitrine"] .chip b { color: #A0A5B0; }
-body[data-view="vitrine"] .chip[aria-pressed="true"] b { color: rgba(255,255,255,.85); }
+/* vitrine: segue o tema (claro/escuro), cartas grandes sem moldura */
+body[data-view="vitrine"] { background: var(--bg); }
 .grid.vitrine .tile { background: none; box-shadow: none; padding: 0; gap: 0; border-radius: 14px; }
 .grid.vitrine .tile .tcap { display: none; }
 .grid.vitrine .tile .tart, .grid.vitrine .tile .tart .real, .grid.vitrine .tile .tart .card { border-radius: 14px; }
-.grid.vitrine .tile .tart .real, .grid.vitrine .tile .tart .card { box-shadow: 0 10px 24px rgba(0,0,0,.55); }
+.grid.vitrine .tile .tart .real, .grid.vitrine .tile .tart .card { box-shadow: 0 10px 24px rgba(20,30,50,.28); }
 .grid.vitrine .tile:has(img.real:not(.ok)) { background: none; }
 body[data-view="vitrine"] .link-btn { background: var(--hd); color: #fff; border-radius: 22px; padding: 0 20px; min-height: 40px; }
 body[data-view="vitrine"] .count-line { padding-top: 16px; }
@@ -676,3 +672,5 @@ textarea#lt-in { border: 2px solid transparent; background: var(--bg2); font-wei
 @media (min-width: 900px) { .toast { bottom: 32px; } }
 .empty h2 { font-weight: 800; }
 @media (max-width: 719px) { .scroller.regions { scroll-padding-inline: 16px; } }
+.sheet .chip { background: var(--bg2); box-shadow: none; }
+.sheet .chip[aria-pressed="true"] { background: var(--chipsel); color: #fff; }
