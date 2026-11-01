@@ -1087,12 +1087,23 @@
     navigator.mediaDevices.getUserMedia({ video: { facingMode: { ideal: 'environment' }, width: { ideal: 1920 }, height: { ideal: 1080 } }, audio: false }).then(function (st) {
       if (!SC.open) { st.getTracks().forEach(function (t) { t.stop(); }); return; }
       SC.stream = st; var v = scEl('sc-video'); v.srcObject = st; v.setAttribute('playsinline', ''); v.muted = true; v.play().catch(function () {});
-      scEl('sc-cam').classList.remove('off'); if (!SC.cands.length && !SC.busy) scIdle();
+      scEl('sc-cam').classList.remove('off'); SC.torch = false; scTorchUi(); if (!SC.cands.length && !SC.busy) scIdle();
     }, function () {
       SC.stream = null; scEl('sc-cam').classList.add('off');
       scEl('sc-cam').querySelector('.sc-hint').textContent = 'A câmera não abriu. Use “Tirar foto” (abre a câmera do celular) ou digite.';
       scIdle();
     });
+  }
+  // lanterna (flash): só aparece se o aparelho/navegador permitir (Android/Chrome sim; iPhone/Safari não libera)
+  function scTorchUi() {
+    var t = SC.stream && SC.stream.getVideoTracks()[0], ok = false;
+    try { ok = !!(t && t.getCapabilities && t.getCapabilities().torch); } catch (e) {}
+    var bt = scEl('sc-torch'); bt.hidden = !ok; bt.setAttribute('aria-pressed', SC.torch ? 'true' : 'false');
+  }
+  function scTorch() {
+    var t = SC.stream && SC.stream.getVideoTracks()[0]; if (!t) return;
+    var on = !SC.torch;
+    t.applyConstraints({ advanced: [{ torch: on }] }).then(function () { SC.torch = on; scTorchUi(); }, function () { toast('Este aparelho não liberou o flash'); });
   }
   function stopCam() { if (SC.stream) { SC.stream.getTracks().forEach(function (t) { t.stop(); }); SC.stream = null; } var v = scEl('sc-video'); if (v) v.srcObject = null; }
   function scOpen() {
@@ -1116,6 +1127,7 @@
     var a = b.getAttribute('data-sc');
     if (a === 'close') return scClose();
     if (a === 'shoot') return scShoot();
+    if (a === 'torch') return scTorch();
     if (a === 'pickfile') return scEl('sc-file').click();
     if (a === 'again') { SC.seq++; return scIdle(); }
     if (a === 'manual') { SC.seq++; return scManual(SC.info || {}); }

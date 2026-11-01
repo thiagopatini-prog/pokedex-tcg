@@ -11,7 +11,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css?v=22">
+<link rel="stylesheet" href="style.css?v=23">
 <script>
 (function(){try{var t=localStorage.getItem('pktcg.theme')||'dark',z=localStorage.getItem('pktcg.size')||'m';
 if(t==='auto')t=matchMedia('(prefers-color-scheme: light)').matches?'light':'dark';
@@ -71,7 +71,7 @@ document.documentElement.setAttribute('data-theme',t);document.documentElement.s
   <div class="sc-top">
     <button class="icon-btn" data-sc="close" aria-label="Fechar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     <div class="sc-seg" role="group" aria-label="Modo"><button data-scmode="one" aria-pressed="true">Uma carta</button><button data-scmode="seq" aria-pressed="false">Sequência</button></div>
-    <span id="sc-count" class="sc-count"></span>
+    <button class="icon-btn sc-torch" id="sc-torch" data-sc="torch" aria-pressed="false" aria-label="Flash" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13 2L4 14h7l-1 8 9-12h-7z"/></svg></button><span id="sc-count" class="sc-count"></span>
   </div>
   <div class="sc-cam off" id="sc-cam"><video id="sc-video" playsinline muted autoplay></video><div class="sc-guide" id="sc-guide"></div><canvas id="sc-frozen" hidden></canvas><p class="sc-hint">Encaixe a carta inteira na moldura, com boa luz e sem reflexo.</p></div>
   <div class="sc-panel" id="sc-panel"></div>
@@ -79,8 +79,8 @@ document.documentElement.setAttribute('data-theme',t);document.documentElement.s
 </div>
 <div class="toast" id="toast" role="status" hidden></div>
 
-<script src="data.js?v=22"></script>
-<script src="db.js?v=22"></script>
-<script src="app.js?v=22"></script>
+<script src="data.js?v=23"></script>
+<script src="db.js?v=23"></script>
+<script src="app.js?v=23"></script>
 </body>
 </html>
