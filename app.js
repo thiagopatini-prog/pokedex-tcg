@@ -93,7 +93,8 @@
         while (active < 3 && idx < jobs.length) {
           (function (s) {
             active++;
-            var has = s.some(function (u) { return MIR[DB.imgPath(u)]; });
+            var hiOnly = s.filter(function (u) { return /\/high\.webp$/.test(u); }), rel = hiOnly.length ? hiOnly : s; // na alta resolução, só vale a cópia da alta
+            var has = rel.some(function (u) { return MIR[DB.imgPath(u)]; });
             (has ? Promise.resolve(true) : tryN(s, 0)).then(function (ok) { MIRP.done++; if (ok) MIRP.ok++; else MIRP.fail++; }).then(function () { active--; if (MIRP.done % 10 === 0) mirUI(); next(); });
           })(jobs[idx++]);
         }
@@ -208,19 +209,22 @@
   // Lista de endereços para tentar, em ordem: português e inglês, número com e sem zeros à esquerda.
   function sources(m, hi) {
     if (m.own && m.imgUrl) return [m.imgUrl];
-    if (m.own && m.img) return [m.img + '/' + (hi ? 'high' : 'low') + '.webp'];
+    if (m.own && m.img) return hi ? [m.img + '/high.webp', m.img + '/low.webp'] : [m.img + '/low.webp'];
     if (!m.own || !m.set || !/^\d+$/.test(m.no || '')) return [];
     var o = (window.CARD_IMG || {})[m.set + '-' + m.no];
     if (o) return [o];
     var sets = TDX[m.set];
     if (!sets) return [];
-    var q = hi ? 'high' : 'low', out = [];
-    ['pt', 'en'].forEach(function (lang) {
-      sets.forEach(function (s) {
-        var padded = m.no, raw = String(parseInt(m.no, 10));
-        var unpadFirst = /\/(swsh[1-8](\.\d)?|sm\d+(\.\d)?|xy\d+|bw\d+)$/.test(s);
-        (unpadFirst ? [raw, padded] : [padded, raw]).forEach(function (n, i, a) {
-          if (a.indexOf(n) === i) out.push('https://assets.tcgdex.net/' + lang + '/' + s + '/' + n + '/' + q + '.webp');
+    var out = [];
+    // alta resolução primeiro; se a TCGdex não tiver (acontece em parte das cartas), cai para a normal
+    (hi ? ['high', 'low'] : ['low']).forEach(function (q) {
+      ['pt', 'en'].forEach(function (lang) {
+        sets.forEach(function (s) {
+          var padded = m.no, raw = String(parseInt(m.no, 10));
+          var unpadFirst = /\/(swsh[1-8](\.\d)?|sm\d+(\.\d)?|xy\d+|bw\d+)$/.test(s);
+          (unpadFirst ? [raw, padded] : [padded, raw]).forEach(function (n, i, a) {
+            if (a.indexOf(n) === i) out.push('https://assets.tcgdex.net/' + lang + '/' + s + '/' + n + '/' + q + '.webp');
+          });
         });
       });
     });
