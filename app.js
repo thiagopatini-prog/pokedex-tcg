@@ -303,7 +303,8 @@
       acct = '<section class="panel"><h2>Conta</h2><p>Entre para ver a mesma coleção em todos os aparelhos. Sem senha: você recebe um link no e-mail.</p>' +
         '<div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" autocomplete="email" inputmode="email" value="' + esc(SYNC.email) + '" placeholder="voce@email.com"></div>' +
         '<button class="primary" data-act="sendlink">Enviar link de acesso</button>' +
-        (SYNC.sent ? '<p>Link enviado para <b>' + esc(SYNC.sent) + '</b>. Abra o e-mail neste aparelho. Se o e-mail trouxer um código, digite aqui:</p><div class="field"><label for="a-code">Código do e-mail</label><input id="a-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div><button class="ghost-btn" data-act="verify">Entrar com o código</button>' : '') +
+        (SYNC.sent ? '<p>Link enviado para <b>' + esc(SYNC.sent) + '</b>. No e-mail, <b>segure o botão/link e escolha “Copiar endereço do link”</b>. Depois cole aqui:</p><div class="field"><label for="a-link">Link do e-mail</label><input id="a-link" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://…supabase.co/auth/v1/verify?…"></div><button class="primary" data-act="pastelink">Entrar com o link colado</button>' +
+          '<details style="margin-top:10px"><summary>Meu e-mail trouxe um código</summary><div class="field"><label for="a-code">Código do e-mail</label><input id="a-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div><button class="ghost-btn" data-act="verify">Entrar com o código</button></details>' : '') +
         (SYNC.msg ? '<p>' + esc(SYNC.msg) + '</p>' : '') + '</section>';
     }
     var side = acct + '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
@@ -574,6 +575,13 @@
       SYNC.email = em; toast('Enviando…');
       DB.sendLink(em).then(function () { SYNC.sent = em; SYNC.msg = ''; render(); toast('Link enviado. Confira o e-mail'); },
         function (e) { SYNC.msg = e.status === 429 ? 'Muitos e-mails em pouco tempo. Espere alguns minutos e tente de novo.' : 'Não foi possível enviar: ' + e.message; render(); });
+      return;
+    }
+    if (act === 'pastelink') {
+      var lk = ($('#a-link').value || '').trim(); if (!lk) return toast('Cole o link do e-mail');
+      toast('Entrando…');
+      DB.consumeLink(lk).then(function () { SYNC.sent = ''; SYNC.msg = ''; toast('Você entrou na conta'); syncNow(); render(); },
+        function (e) { SYNC.msg = 'Não entrou: ' + e.message; render(); });
       return;
     }
     if (act === 'verify') {

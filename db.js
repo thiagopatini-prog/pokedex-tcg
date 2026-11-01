@@ -53,6 +53,17 @@
         else throw new Error('Código inválido');
       });
     },
+    // link do e-mail colado à mão (quando o link abriu em outro navegador): troca o token do link por uma sessão aqui
+    consumeLink: function (txt) {
+      var m = String(txt || '').match(/https?:\/\/[^\s"'<>]+/); if (!m) return Promise.reject(new Error('Cole o endereço completo do link'));
+      var u; try { u = new window.URL(m[0].replace(/&amp;/g, '&')); } catch (e) { return Promise.reject(new Error('Link inválido')); }
+      var tok = u.searchParams.get('token') || u.searchParams.get('token_hash'), type = u.searchParams.get('type') || 'magiclink';
+      if (!tok) return Promise.reject(new Error('Esse link não tem o código de acesso'));
+      return req('/auth/v1/verify', { method: 'POST', body: { type: type, token_hash: tok } }).then(function (j) {
+        if (j && j.access_token) { setTokens(j.access_token, j.refresh_token, j.expires_in); if (j.user && j.user.email) { S.email = j.user.email; store(S); } }
+        else throw new Error('Link vencido ou já usado. Peça outro');
+      });
+    },
     signOut: function () { var p = S ? req('/auth/v1/logout', { method: 'POST', auth: true }).catch(function () {}) : Promise.resolve(); store(null); return p; },
     pull: function () {
       return ensure().then(function () { return req('/rest/v1/collection_state?select=data,t&limit=1', { auth: true }); }).then(function (rows) { return rows && rows[0] ? rows[0] : null; });
