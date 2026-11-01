@@ -135,7 +135,7 @@ main { padding-block: 0 130px; min-height: 60vh; }
 .big .card .cn { font-family: var(--display); font-size: clamp(16px, 5.6vw, 22px); font-weight: 700; }
 .big .card .cf { font-size: 12px; }
 .big .card .ln { height: 6px; }
-.big .real { border-radius: inherit; box-shadow: none; }
+.big .real { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; border-radius: inherit; box-shadow: none; background: var(--surface2); }
 .big.miss .card { background: var(--bg2); border: 1px dashed #3a3d45; color: var(--muted); justify-content: center; align-items: center; }
 .big.miss .card .art { background: none; width: 100%; }
 .big.miss .card .art .sp { filter: grayscale(1) brightness(.85); opacity: .4; }

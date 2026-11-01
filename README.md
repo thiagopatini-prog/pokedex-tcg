@@ -18,8 +18,8 @@ Para gerar o APK depois, o mesmo projeto serve no PWABuilder ou no Capacitor.
 - Mudanças feitas no app (marcar carta, lista de compras) ficam salvas no aparelho. Em Mais > Exportar CSV você baixa no formato da planilha.
 
 ## Imagens das cartas
-O app busca a imagem oficial pela coleção + número (base pública pokemontcg.io). Se a coleção não for encontrada, mostra uma ficha com a arte do Pokémon.
+O app busca a imagem oficial pela coleção + número na base pública TCGdex (primeiro em português, depois em inglês). Se não achar, mostra uma ficha com a arte do Pokémon. Para forçar uma imagem específica, crie `window.CARD_IMG = {"MEP-079":"https://..."}` no data.js.
 Para forçar uma imagem específica, crie `cards.js` com `window.CARD_IMG = {"MEG-001": "https://..."}` e inclua `<script src="cards.js"></script>` antes de `app.js` no `index.html`.
 
 ## Atualizar o app
-Troque o número da versão em `sw.js` (`pktcg-v1` para `pktcg-v2`) a cada atualização, para o celular baixar os arquivos novos.
+Troque o número da versão em `sw.js` (`pktcg-v2` para `pktcg-v2`) a cada atualização, para o celular baixar os arquivos novos.

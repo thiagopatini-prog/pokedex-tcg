@@ -5,11 +5,17 @@
   var REG = {};
   D.regions.forEach(function (r) { REG[r.g] = r; });
 
-  // Fonte das imagens reais das cartas (pokemontcg.io). Se a coleção não for encontrada, a carta aparece
-  // como "ficha" com a arte oficial do Pokémon. Para forçar uma imagem: window.CARD_IMG = {"MEG-001":"https://..."}
-  var IMG = 'https://images.pokemontcg.io/{set}/{num}.png';
-  var IMG_HI = 'https://images.pokemontcg.io/{set}/{num}_hires.png';
-  var SETS_URL = 'https://api.pokemontcg.io/v2/sets?select=id,ptcgoCode';
+  // Imagens das cartas: TCGdex (em português, com inglês de reserva). O código da coleção da planilha
+  // (MEG, PFL...) vira o código da TCGdex pela tabela abaixo. Se nada carregar, aparece a "ficha" com a arte do Pokémon.
+  // Para forçar uma imagem: window.CARD_IMG = {"MEG-001":"https://..."}
+  var TDX = {
+    MEG: ['me/me01'], MEP: ['me/mep'], PFL: ['me/me02'], ASC: ['me/me02.5'], POR: ['me/me03'], CRI: ['me/me04'], PBL: ['me/me05'], MEE: ['me/mee'], '30C': ['me/30th', 'me/30th-c'],
+    SVI: ['sv/sv01'], PAL: ['sv/sv02'], OBF: ['sv/sv03'], MEW: ['sv/sv03.5'], PAR: ['sv/sv04'], PAF: ['sv/sv04.5'], TEF: ['sv/sv05'], TWM: ['sv/sv06'], SFA: ['sv/sv06.5'], SCR: ['sv/sv07'], SSP: ['sv/sv08'], PRE: ['sv/sv08.5'], JTG: ['sv/sv09'], DRI: ['sv/sv10'], BLK: ['sv/sv10.5b'], WHT: ['sv/sv10.5w'], SVP: ['sv/svp'],
+    SSH: ['swsh/swsh1'], RCL: ['swsh/swsh2'], DAA: ['swsh/swsh3'], CPA: ['swsh/swsh3.5'], VIV: ['swsh/swsh4'], SHF: ['swsh/swsh4.5'], BST: ['swsh/swsh5'], CRE: ['swsh/swsh6'], EVS: ['swsh/swsh7'], CEL: ['swsh/cel25'], FST: ['swsh/swsh8'], BRS: ['swsh/swsh9'], ASR: ['swsh/swsh10'], PGO: ['swsh/swsh10.5'], LOR: ['swsh/swsh11'], SIT: ['swsh/swsh12'], CRZ: ['swsh/swsh12.5'],
+    SUM: ['sm/sm1'], GRI: ['sm/sm2'], BUS: ['sm/sm3'], SLG: ['sm/sm3.5'], CIN: ['sm/sm4'], UPR: ['sm/sm5'], FLI: ['sm/sm6'], CES: ['sm/sm7'], DRM: ['sm/sm7.5'], LOT: ['sm/sm8'], TEU: ['sm/sm9'], UNB: ['sm/sm10'], UNM: ['sm/sm11'], HIF: ['sm/sm115'], CEC: ['sm/sm12'],
+    XY: ['xy/xy1'], FLF: ['xy/xy2'], FFI: ['xy/xy3'], PHF: ['xy/xy4'], PRC: ['xy/xy5'], ROS: ['xy/xy6'], AOR: ['xy/xy7'], BKT: ['xy/xy8'], BKP: ['xy/xy9'], FCO: ['xy/xy10'], STS: ['xy/xy11'], EVO: ['xy/xy12'],
+    BLW: ['bw/bw1'], EP: ['bw/bw2'], NVI: ['bw/bw3'], NXD: ['bw/bw4'], DEX: ['bw/bw5'], DRX: ['bw/bw6'], BCR: ['bw/bw7'], PLS: ['bw/bw8'], PLF: ['bw/bw9'], PLB: ['bw/bw10'], LTR: ['bw/bw11']
+  };
 
   var KEY = 'pktcg.v1';
   var ST = { wants: [], edits: {}, alt: false };
@@ -20,12 +26,6 @@
     ST.alt = !!sv.alt;
   } catch (e) {}
   function save() { try { localStorage.setItem(KEY, JSON.stringify(ST)); } catch (e) {} }
-
-  var SETS = {};
-  try {
-    var c = JSON.parse(localStorage.getItem('pktcg.sets') || 'null');
-    if (c && Date.now() - c.t < 6048e5) SETS = c.m;
-  } catch (e) {}
 
   var UI = { view: 'colecao', region: 0, status: 'all', fin: '', set: '', q: '', search: false };
   var BY = {}, VISIBLE = [], V = { ids: [], i: 0 }, confirmRemove = false;
@@ -55,24 +55,29 @@
   }
 
   /* ---------- imagem real da carta ---------- */
-  function imgUrl(m, hi) {
-    if (!m.own || !m.set || !/^\d+$/.test(m.no || '')) return '';
+  // Lista de endereços para tentar, em ordem: português e inglês, número com e sem zeros à esquerda.
+  function sources(m, hi) {
+    if (!m.own || !m.set || !/^\d+$/.test(m.no || '')) return [];
     var o = (window.CARD_IMG || {})[m.set + '-' + m.no];
-    if (o) return o;
-    var id = SETS[m.set];
-    if (!id) return '';
-    return (hi ? IMG_HI : IMG).replace('{set}', id).replace('{num}', String(parseInt(m.no, 10)));
+    if (o) return [o];
+    var sets = TDX[m.set];
+    if (!sets) return [];
+    var q = hi ? 'high' : 'low', out = [];
+    ['pt', 'en'].forEach(function (lang) {
+      sets.forEach(function (s) {
+        var padded = m.no, raw = String(parseInt(m.no, 10));
+        var unpadFirst = /\/(swsh[1-8](\.\d)?|sm\d+(\.\d)?|xy\d+|bw\d+)$/.test(s);
+        (unpadFirst ? [raw, padded] : [padded, raw]).forEach(function (n, i, a) {
+          if (a.indexOf(n) === i) out.push('https://assets.tcgdex.net/' + lang + '/' + s + '/' + n + '/' + q + '.webp');
+        });
+      });
+    });
+    return out;
   }
-  function loadSets() {
-    if (Object.keys(SETS).length || !window.fetch) return;
-    fetch(SETS_URL).then(function (r) { return r.json(); }).then(function (j) {
-      var m = {};
-      (j.data || []).forEach(function (s) { if (s.ptcgoCode) m[String(s.ptcgoCode).toUpperCase()] = s.id; });
-      if (!Object.keys(m).length) return;
-      SETS = m;
-      try { localStorage.setItem('pktcg.sets', JSON.stringify({ t: Date.now(), m: m })); } catch (e) {}
-      render();
-    }).catch(function () {});
+  function imgTag(m, hi) {
+    var s = sources(m, hi);
+    if (!s.length) return '';
+    return '<img class="real" loading="lazy" alt="" src="' + esc(s[0]) + '" data-alt="' + esc(s.slice(1).join('|')) + '">';
   }
 
   /* ---------- peças de HTML ---------- */
@@ -86,8 +91,7 @@
     var tag = m.alt ? '<span class="tag">' + (m.kind === 'Regional' ? 'Reg' : 'Alt') + '</span>' : '';
     var want = !m.own && ST.wants.indexOf(m.id) >= 0 ? '<span class="want" title="Na lista de compras">' + ICON.heart + '</span>' : '';
     if (m.own) {
-      var u = imgUrl(m, false);
-      return '<button class="tile" data-id="' + m.id + '" aria-label="' + esc(lab) + '">' + cardFrame(m, false) + (u ? '<img class="real" loading="lazy" alt="" src="' + u + '">' : '') + tag + '</button>';
+      return '<button class="tile" data-id="' + m.id + '" aria-label="' + esc(lab) + '">' + cardFrame(m, false) + imgTag(m, false) + tag + '</button>';
     }
     return '<button class="tile" data-id="' + m.id + '" aria-label="' + esc(lab) + '"><span class="ghost' + (noCard(m) ? ' none' : '') + '"><span class="gn">' + esc(m.n) + '</span>' + sp(m, 'sp') + '<span class="gx">#' + pad(m.d) + '</span></span>' + tag + want + '</button>';
   }
@@ -219,8 +223,8 @@
     if (!m) return closeViewer();
     var big = $('#big');
     big.className = 'big' + (m.own ? '' : ' miss');
-    var u = imgUrl(m, true), inner;
-    if (m.own) inner = cardFrame(m, true) + (u ? '<img class="real" alt="" src="' + u + '">' : '') + layers(m);
+    var inner;
+    if (m.own) inner = cardFrame(m, true) + imgTag(m, true) + layers(m);
     else inner = '<span class="card"><span class="art">' + sp(m, 'sp') + '</span><span class="cn" style="font-weight:500">Ainda não tenho</span></span>';
     big.innerHTML = inner;
     $('#v-pos').textContent = (V.i + 1) + ' de ' + V.ids.length;
@@ -344,8 +348,13 @@
     if (e.target.id === 'f-fin') { UI.fin = e.target.value; render(); }
     if (e.target.id === 'f-set') { UI.set = e.target.value; render(); }
   });
-  // imagem real que não carrega: some e deixa a ficha à mostra
-  document.addEventListener('error', function (e) { if (e.target && e.target.classList && e.target.classList.contains('real')) e.target.remove(); }, true);
+  // imagem real que não carrega: tenta o próximo endereço; se acabar, some e deixa a ficha à mostra
+  document.addEventListener('error', function (e) {
+    var t = e.target;
+    if (!t || !t.classList || !t.classList.contains('real')) return;
+    var alt = (t.getAttribute('data-alt') || '').split('|').filter(Boolean);
+    if (alt.length) { t.setAttribute('data-alt', alt.slice(1).join('|')); t.src = alt[0]; } else t.remove();
+  }, true);
 
   $('#btn-search').addEventListener('click', function () {
     UI.search = !UI.search; $('#search').hidden = !UI.search;
@@ -393,7 +402,6 @@
   }
   window.addEventListener('hashchange', route);
   route();
-  loadSets();
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(function () {});
   }
