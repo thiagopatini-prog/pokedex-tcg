@@ -53,6 +53,17 @@
         else throw new Error('Código inválido');
       });
     },
+    // entrar com e-mail e senha (sem e-mail de link)
+    signInPassword: function (email, pw) {
+      return req('/auth/v1/token?grant_type=password', { method: 'POST', body: { email: email, password: pw } }).then(function (j) {
+        if (j && j.access_token) { setTokens(j.access_token, j.refresh_token, j.expires_in); S.email = (j.user && j.user.email) || email; store(S); }
+        else throw new Error('Não foi possível entrar');
+      });
+    },
+    // define (ou troca) a senha da conta que está logada agora
+    setPassword: function (pw) {
+      return ensure().then(function () { return req('/auth/v1/user', { method: 'PUT', auth: true, body: { password: pw } }); });
+    },
     // link do e-mail colado à mão (quando o link abriu em outro navegador): troca o token do link por uma sessão aqui
     consumeLink: function (txt) {
       var m = String(txt || '').match(/https?:\/\/[^\s"'<>]+/); if (!m) return Promise.reject(new Error('Cole o endereço completo do link'));

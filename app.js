@@ -358,7 +358,8 @@
       '<h2 class="sec">Regiões</h2><div class="reg-grid">' + cards + '</div>';
     var u = window.DB && DB.user(), acct;
     if (u) {
-      acct = '<section class="panel"><h2>Conta</h2><p>Conectado como <b>' + esc(u.email || 'sua conta') + '</b>. Sua coleção é a mesma em todos os aparelhos em que você entrar.</p><p>' + esc(SYNC.msg || 'Pronto para sincronizar') + '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="syncnow">Sincronizar agora</button><button class="ghost-btn" data-act="signout">Sair</button></div></section>' +
+      acct = '<section class="panel"><h2>Conta</h2><p>Conectado como <b>' + esc(u.email || 'sua conta') + '</b>. Sua coleção é a mesma em todos os aparelhos em que você entrar.</p><p>' + esc(SYNC.msg || 'Pronto para sincronizar') + '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="syncnow">Sincronizar agora</button><button class="ghost-btn" data-act="signout">Sair</button></div>' +
+        '<details style="margin-top:12px"' + (SYNC.pwOpen ? ' open' : '') + '><summary>Definir ou trocar a senha</summary><p>Com senha, você entra em outro aparelho só com e-mail e senha, sem esperar link no e-mail. Use pelo menos 10 caracteres.</p><div class="field"><label for="a-newpw">Nova senha</label><input id="a-newpw" type="password" autocomplete="new-password" minlength="8"></div><button class="primary" data-act="setpw">Salvar senha</button></details></section>' +
         '<section class="panel"><h2>Imagens no seu servidor</h2><p>' +
         (MIRP.run ? 'Copiando… ' + MIRP.done + ' de ' + MIRP.total + (MIRP.fail ? ' · ' + MIRP.fail + ' sem imagem' : '') :
           MIRP.total ? 'Pronto: ' + MIRP.ok + ' de ' + MIRP.total + ' copiadas' + (MIRP.fail ? ' · ' + MIRP.fail + ' não encontradas' : '') + '.' :
@@ -367,7 +368,8 @@
     } else {
       acct = '<section class="panel"><h2>Conta</h2><p>Entre para ver a mesma coleção em todos os aparelhos. Sem senha: você recebe um link no e-mail.</p>' +
         '<div class="field"><label for="a-email">E-mail</label><input id="a-email" type="email" autocomplete="email" inputmode="email" value="' + esc(SYNC.email) + '" placeholder="voce@email.com"></div>' +
-        '<button class="primary" data-act="sendlink">Enviar link de acesso</button>' +
+        '<div class="field"><label for="a-pw">Senha</label><input id="a-pw" type="password" autocomplete="current-password" placeholder="se você já definiu uma"></div><button class="primary" data-act="pwlogin">Entrar com senha</button>' +
+        '<p style="margin-top:14px">Ou receba um link no e-mail:</p><button class="ghost-btn" data-act="sendlink">Enviar link de acesso</button>' +
         (SYNC.sent ? '<p>Link enviado para <b>' + esc(SYNC.sent) + '</b>. No e-mail, <b>segure o botão/link e escolha “Copiar endereço do link”</b>. Depois cole aqui:</p><div class="field"><label for="a-link">Link do e-mail</label><input id="a-link" inputmode="url" autocomplete="off" autocapitalize="off" placeholder="https://…supabase.co/auth/v1/verify?…"></div><button class="primary" data-act="pastelink">Entrar com o link colado</button>' +
           '<details style="margin-top:10px"><summary>Meu e-mail trouxe um código</summary><div class="field"><label for="a-code">Código do e-mail</label><input id="a-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div><button class="ghost-btn" data-act="verify">Entrar com o código</button></details>' : '') +
         (SYNC.msg ? '<p>' + esc(SYNC.msg) + '</p>' : '') + '</section>';
@@ -653,6 +655,20 @@
     if (act === 'verify') {
       var cd = ($('#a-code').value || '').replace(/\s+/g, ''); if (!cd) return toast('Digite o código');
       DB.verifyCode(SYNC.sent, cd).then(function () { SYNC.sent = ''; SYNC.msg = ''; syncNow(); render(); }, function (e) { toast('Código inválido ou vencido'); });
+      return;
+    }
+    if (act === 'pwlogin') {
+      var pe = ($('#a-email').value || '').trim(), pp = $('#a-pw').value || '';
+      if (!/^\S+@\S+\.\S+$/.test(pe)) return toast('Digite um e-mail válido'); if (!pp) return toast('Digite a senha');
+      SYNC.email = pe; toast('Entrando…');
+      DB.signInPassword(pe, pp).then(function () { SYNC.msg = ''; toast('Você entrou na conta'); syncNow(); render(); },
+        function (e) { SYNC.msg = /invalid|credentials/i.test(e.message) ? 'E-mail ou senha incorretos. Se ainda não definiu uma senha, entre pelo link do e-mail primeiro.' : 'Não entrou: ' + e.message; render(); });
+      return;
+    }
+    if (act === 'setpw') {
+      var np = $('#a-newpw').value || ''; if (np.length < 8) return toast('Use pelo menos 8 caracteres');
+      DB.setPassword(np).then(function () { SYNC.pwOpen = false; SYNC.msg = 'Senha salva. Agora você pode entrar com e-mail e senha em qualquer aparelho.'; render(); toast('Senha salva'); },
+        function (e) { SYNC.pwOpen = true; SYNC.msg = 'Não salvou a senha: ' + e.message; render(); });
       return;
     }
     if (act === 'mirror') return mirrorAll();
