@@ -364,7 +364,7 @@
   function viewLista() {
     var items = wantList();
     if (!items.length) return '<div class="empty"><h2>Lista vazia</h2><p>Abra uma carta que falta e toque em “Adicionar à lista”, ou use o filtro Faltam e adicione várias de uma vez.</p></div>';
-    var h = '<div class="count-line"><span>' + items.length + (items.length === 1 ? ' carta para comprar' : ' cartas para comprar') + '</span></div><div class="actions"><button class="primary" data-act="copylist">Copiar lista</button><button class="ghost-btn" data-act="clearlist">Limpar</button></div><ul class="list">';
+    var h = '<div class="count-line"><span>' + items.length + (items.length === 1 ? ' carta para comprar' : ' cartas para comprar') + '</span></div><div class="actions"><button class="primary" data-act="copylist">Copiar lista</button><button class="ghost-btn" data-act="print">Imprimir fichas</button><button class="ghost-btn" data-act="clearlist">Limpar</button></div><ul class="list">';
     D.regions.forEach(function (r) {
       var g = items.filter(function (m) { return m.g === r.g; });
       if (!g.length) return;
@@ -407,7 +407,7 @@
     var side = acct + '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
       chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Auto', PREF.theme === 'auto', 'data-theme-set="auto"') +
       '</div></div></section>' +
-      '<section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>' +
+      '<section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="print">Imprimir fichas</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>' +
       '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa.</p></section>';
     return '<div class="mais"><div class="mais-main">' + main + '</div><aside class="mais-side">' + side + '</aside></div>';
   }
@@ -1336,6 +1336,96 @@
   }
   window.addEventListener('hashchange', route);
   applyPrefs();
+  /* ---------- imprimir fichas (cartas que faltam) ---------- */
+  var PR = { src: 'miss', reg: 'all', paper: 'a4', fill: 'w', marks: 1, guide: 0, region: 1, page: 0 };
+  try { var _pr = JSON.parse(localStorage.getItem('pktcg.print') || 'null'); if (_pr) Object.keys(PR).forEach(function (k) { if (_pr[k] != null && k !== 'page') PR[k] = _pr[k]; }); } catch (e) {}
+  var PSZ = { a4: [210, 297], letter: [215.9, 279.4] };
+  function prSave() { try { localStorage.setItem('pktcg.print', JSON.stringify(PR)); } catch (e) {} }
+  function prItems() {
+    var l = PR.src === 'wants' ? wantList() : D.mons.map(eff).filter(function (m) { return !m.own && inScope(m); });
+    l = l.filter(function (m) { return !noCard(m) && (PR.reg === 'all' || String(m.g) === String(PR.reg)); });
+    return l.sort(function (a, b) { return a.d - b.d || (a.alt || 0) - (b.alt || 0); });
+  }
+  function prMm(n) { return (Math.round(n * 100) / 100) + 'mm'; }
+  function prPages(items) {
+    var W = PSZ[PR.paper][0], H = PSZ[PR.paper][1], ox = (W - 189) / 2, oy = (H - 264) / 2, out = [], n = Math.max(1, Math.ceil(items.length / 9));
+    for (var p = 0; p < n; p++) {
+      var h = '<div class="pgp" style="width:' + prMm(W) + ';height:' + prMm(H) + '"><div class="pgg' + (PR.guide ? ' guide' : '') + '" style="left:' + prMm(ox) + ';top:' + prMm(oy) + '">';
+      items.slice(p * 9, p * 9 + 9).forEach(function (m) {
+        h += '<div class="pc ' + (PR.fill === 'g' ? 'pcg' : '') + '"><div class="pcx"></div><div class="pct">' + esc(m.n) + '</div>' + sp(m, 'pca') + '<div class="pcn">#' + pad(m.d) + (PR.region && REG[m.g] ? ' · ' + esc(REG[m.g].name) : '') + '</div></div>';
+      });
+      h += '</div>';
+      if (PR.marks) {
+        var L = 3, off = 1.6, mk = function (x, y, w, hh) { return '<i class="pm" style="left:' + prMm(x) + ';top:' + prMm(y) + ';width:' + prMm(w) + ';height:' + prMm(hh) + '"></i>'; };
+        for (var i = 0; i <= 3; i++) { var x = ox + i * 63, y = oy + i * 88; h += mk(x - .1, oy - off - L, .2, L) + mk(x - .1, oy + 264 + off, .2, L) + mk(ox - off - L, y - .1, L, .2) + mk(ox + 189 + off, y - .1, L, .2); }
+      }
+      out.push(h + '</div>');
+    }
+    return out;
+  }
+  function prFit() {
+    var st = $('#pr-stage'), pg = $('#pr-pg'); if (!st || !pg) return;
+    var W = PSZ[PR.paper][0], H = PSZ[PR.paper][1], cw = Math.max(120, Math.min((st.parentNode.clientWidth || 320) - 28, 340)), sc = cw / (W * 96 / 25.4);
+    pg.style.transform = 'scale(' + sc + ')'; st.style.width = cw + 'px'; st.style.height = (H * 96 / 25.4 * sc) + 'px';
+  }
+  function prRender() {
+    var items = prItems(), pages = prPages(items), np = pages.length; if (PR.page >= np) PR.page = np - 1; if (PR.page < 0) PR.page = 0;
+    var box = $('#print'); if (!box || box.hidden) return;
+    $('#pr-pg').innerHTML = items.length ? pages[PR.page] : '';
+    $('#pr-pg').style.width = PSZ[PR.paper][0] + 'mm'; $('#pr-pg').style.height = PSZ[PR.paper][1] + 'mm';
+    $('#pr-info').textContent = items.length ? items.length + (items.length === 1 ? ' ficha' : ' fichas') + ' · ' + np + (np === 1 ? ' folha' : ' folhas') : 'Nada para imprimir com essa escolha';
+    $('#pr-pl').textContent = items.length ? 'Folha ' + (PR.page + 1) + ' de ' + np : '';
+    $('#pr-prev').disabled = PR.page <= 0; $('#pr-next').disabled = PR.page >= np - 1; $('#pr-go').disabled = !items.length;
+    prFit();
+  }
+  function openPrint() {
+    var sh = $('#print'), opts = '<option value="all">Todas as regiões</option>' + D.regions.map(function (r) { return '<option value="' + r.g + '">' + esc(r.name) + '</option>'; }).join('');
+    sh.innerHTML = '<div class="box" role="dialog" aria-modal="true" aria-label="Imprimir fichas"><h3>Imprimir fichas</h3><div class="body">' +
+      '<p class="hint" style="margin:0">Uma ficha por carta que falta, no tamanho real (63 × 88 mm), com marcas de corte. Para a pasta de cartas.</p>' +
+      '<div class="field"><label for="pr-src">O que imprimir</label><select id="pr-src"><option value="miss">Cartas que faltam</option><option value="wants">Só a lista de compras</option></select></div>' +
+      '<div class="field"><label for="pr-reg">Região</label><select id="pr-reg">' + opts + '</select></div>' +
+      '<div class="field"><label>Folha</label><div class="seg" id="pr-paper">' + chip('A4', PR.paper === 'a4', 'data-pr="paper:a4"') + chip('Carta', PR.paper === 'letter', 'data-pr="paper:letter"') + '</div></div>' +
+      '<div class="field"><label>Fundo da ficha</label><div class="seg" id="pr-fill">' + chip('Branco', PR.fill === 'w', 'data-pr="fill:w"') + chip('Cinza', PR.fill === 'g', 'data-pr="fill:g"') + '</div></div>' +
+      '<div class="field"><label>Detalhes</label><div class="pr-tg">' + chip('Marcas de corte', PR.marks, 'data-pr="tog:marks"') + chip('Linha-guia', PR.guide, 'data-pr="tog:guide"') + chip('Mostrar região', PR.region, 'data-pr="tog:region"') + '</div></div>' +
+      '<div class="pr-prev"><div class="pr-bar"><button class="icon-btn" id="pr-prev" aria-label="Folha anterior" data-pr="pg:-1">‹</button><span id="pr-pl"></span><button class="icon-btn" id="pr-next" aria-label="Próxima folha" data-pr="pg:1">›</button></div>' +
+      '<div class="pr-desk"><div id="pr-stage" class="pr-stage"><div id="pr-pg" class="pr-sheet"></div></div></div><p class="hint" id="pr-info" style="margin:0;text-align:center"></p></div>' +
+      '<p class="hint" style="margin:0">Na janela de impressão: escala <b>100%</b> (tamanho real), margens <b>Nenhuma</b>, e ative <b>gráficos de segundo plano</b> se a arte não aparecer. Teste com uma folha antes.</p></div>' +
+      '<div class="foot"><button class="primary" id="pr-go" data-pr="go">Imprimir / salvar PDF</button><button class="ghost-btn" data-pr="close">Fechar</button></div></div>';
+    sh.hidden = false; document.body.style.overflow = 'hidden'; PR.page = 0;
+    $('#pr-src').value = PR.src; $('#pr-reg').value = PR.reg; prRender();
+  }
+  function closePrint() { var sh = $('#print'); if (!sh) return; sh.hidden = true; sh.innerHTML = ''; document.body.style.overflow = ''; }
+  function doPrint() {
+    var items = prItems(); if (!items.length) return;
+    var pa = $('#printarea'); if (!pa) { pa = document.createElement('div'); pa.id = 'printarea'; document.body.appendChild(pa); }
+    pa.innerHTML = prPages(items).join('');
+    var ps = $('#pgstyle'); if (!ps) { ps = document.createElement('style'); ps.id = 'pgstyle'; document.head.appendChild(ps); }
+    ps.textContent = '@page{size:' + (PR.paper === 'a4' ? 'A4' : 'letter') + ' portrait;margin:0}';
+    var done = function () { pa.innerHTML = ''; window.removeEventListener('afterprint', done); };
+    window.addEventListener('afterprint', done);
+    setTimeout(function () { window.print(); }, 250);
+  }
+  document.addEventListener('click', function (e) {
+    var a = e.target.closest('[data-act="print"]'); if (a) { e.preventDefault(); return openPrint(); }
+    var b = e.target.closest('[data-pr]'); if (!b) return;
+    var v = b.getAttribute('data-pr'), k = v.split(':')[0], x = v.split(':')[1];
+    if (k === 'close') return closePrint();
+    if (k === 'go') return doPrint();
+    if (k === 'paper') PR.paper = x; else if (k === 'fill') PR.fill = x;
+    else if (k === 'tog') PR[x] = PR[x] ? 0 : 1;
+    else if (k === 'pg') { PR.page += +x; prRender(); return; }
+    prSave();
+    ['paper', 'fill'].forEach(function (g) { var s = $('#pr-' + g); if (s) [].forEach.call(s.querySelectorAll('.chip'), function (c) { c.setAttribute('aria-pressed', String(c.getAttribute('data-pr') === g + ':' + PR[g])); }); });
+    [].forEach.call(document.querySelectorAll('#print [data-pr^="tog:"]'), function (c) { c.setAttribute('aria-pressed', String(!!PR[c.getAttribute('data-pr').split(':')[1]])); });
+    prRender();
+  });
+  document.addEventListener('change', function (e) {
+    if (e.target.id === 'pr-src') { PR.src = e.target.value; PR.page = 0; prSave(); prRender(); }
+    else if (e.target.id === 'pr-reg') { PR.reg = e.target.value; PR.page = 0; prSave(); prRender(); }
+  });
+  window.addEventListener('resize', prFit);
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape' && $('#print') && !$('#print').hidden) closePrint(); });
+
   if (window.DB) {
     var back = DB.consumeHash();
     if (back) { if (back.ok) toast('Você entrou na conta'); else SYNC.msg = back.error; }

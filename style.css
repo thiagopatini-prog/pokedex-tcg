@@ -723,3 +723,37 @@ body[data-view="colecao"] .search { padding-bottom: 6px; }
   main { padding-block: 0 96px; }
   .toast { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); }
 }
+
+/* ===== imprimir fichas ===== */
+#print .field select { width: 100%; height: 46px; border: 0; border-radius: 14px; background: var(--bg2); color: var(--fg); font: 700 15px var(--body); padding: 0 12px; }
+#print .seg { display: flex; }
+#print .seg .chip { flex: 1; justify-content: center; }
+.pr-tg { display: flex; flex-wrap: wrap; gap: 8px; }
+.pr-tg .chip { height: 38px; }
+#print .box { max-width: 560px; }
+.pr-prev { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.pr-bar { display: flex; align-items: center; gap: 12px; font-weight: 800; font-size: 14px; }
+.pr-bar .icon-btn { width: 40px; height: 40px; background: var(--surface2); color: var(--fg); font-size: 20px; border: 0; }
+.pr-bar .icon-btn:disabled { opacity: .35; }
+.pr-desk { width: 100%; display: flex; justify-content: center; background: var(--surface2); border-radius: 16px; padding: 14px; }
+.pr-stage { position: relative; }
+.pr-sheet { position: absolute; left: 0; top: 0; transform-origin: 0 0; background: #fff; box-shadow: 0 6px 20px rgba(0,0,0,.3); }
+.pgp { position: relative; background: #fff; color: #000; overflow: hidden; }
+.pgg { position: absolute; display: grid; grid-template-columns: repeat(3, 63mm); grid-template-rows: repeat(3, 88mm); }
+.pc { position: relative; width: 63mm; height: 88mm; background: #fff; overflow: hidden; }
+.pc.pcg { background: #E9ECF1; }
+.pcx { position: absolute; inset: .6mm; border: .3mm dashed #9aa0ac; border-radius: 0; }
+.pct { position: absolute; left: 2mm; right: 2mm; top: 5mm; text-align: center; font: 800 4.4mm Nunito, system-ui, sans-serif; color: #3a3f4b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pca { position: absolute; left: 50%; top: 50%; width: 46mm; height: 46mm; transform: translate(-50%, -50%); display: block; background-repeat: no-repeat; filter: grayscale(1) brightness(.85); opacity: .45; }
+.pcn { position: absolute; left: 0; right: 0; bottom: 5mm; text-align: center; font: 700 3.4mm Nunito, system-ui, sans-serif; color: #5a606d; }
+.pgg.guide .pc { outline: .15mm solid rgba(0,0,0,.25); outline-offset: -.075mm; }
+.pm { position: absolute; background: #000; }
+#printarea { display: none; }
+@media print {
+  html, body { background: #fff !important; margin: 0 !important; padding: 0 !important; }
+  body > *:not(#printarea) { display: none !important; }
+  #printarea { display: block !important; }
+  #printarea, #printarea * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  #printarea .pgp { break-after: page; page-break-after: always; }
+  #printarea .pgp:last-child { break-after: auto; page-break-after: auto; }
+}
