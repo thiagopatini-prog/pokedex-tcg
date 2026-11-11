@@ -774,29 +774,19 @@ body[data-view="lista"] .search, body[data-view="regioes"] .search, body[data-vi
 body[data-view="lista"] #btn-search, body[data-view="regioes"] #btn-search, body[data-view="ajustes"] #btn-search { display: none; }
 
 @media (min-width: 900px) {
-  body { --sbw: 208px; padding-left: var(--sbw); transition: padding-left .2s ease; }
-  body.nav-mini { --sbw: 76px; }
-  .nav { position: fixed; top: 0; bottom: 0; left: 0; right: auto; transform: none; width: var(--sbw); z-index: 25; display: flex; flex-direction: column; padding: 20px 12px 16px; background: var(--surface); border-right: 1px solid var(--line); box-shadow: none; transition: width .2s ease; overflow: hidden; }
-  .nav ul { flex-direction: column; align-items: stretch; justify-content: flex-start; width: 100%; max-width: none; margin: 0; padding: 0; gap: 4px; background: none; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
-  .nav li { display: block; }
-  .nav button { flex-direction: row; justify-content: flex-start; flex: none; gap: 12px; width: 100%; min-width: 0; min-height: 46px; padding: 0 14px; border-radius: 14px; font-size: 14.5px; font-weight: 800; color: var(--fg); background: none; position: static; white-space: nowrap; }
-  .nav button svg { width: 22px; height: 22px; flex: none; }
-  .nav button:hover { background: var(--bg2); }
-  .nav button[aria-current="page"] { background: var(--accent); color: #fff; }
-  .nav button[aria-current="page"]::after { display: none; }
-  .nav .nav-brand { display: flex; align-items: center; gap: 10px; padding: 2px 12px 20px; font-size: 17px; font-weight: 900; white-space: nowrap; }
-  .nav-brand .pb { flex: none; width: 30px; height: 30px; border-radius: 50%; border: 3px solid var(--fg); background: linear-gradient(var(--accent) 44%, var(--fg) 44% 56%, #fff 56%); box-sizing: border-box; }
-  .nav .nav-toggle { display: flex; margin-top: auto; color: var(--muted); font-weight: 700; font-size: 13.5px; }
-  .nav .nav-toggle svg { width: 20px; height: 20px; transition: transform .2s; }
-  body.nav-mini .nav { padding-inline: 10px; }
-  body.nav-mini .nav-brand b, body.nav-mini .nav button span { display: none; }
-  body.nav-mini .nav-brand { justify-content: center; padding-inline: 0; }
-  body.nav-mini .nav button { justify-content: center; padding: 0; }
-  body.nav-mini .nav-toggle svg { transform: rotate(180deg); }
-  /* faixa vermelha parte da lateral e vai até a borda direita */
-  .top::before, .progress::before, .search::before { width: calc(100vw - var(--sbw)); margin-left: calc(-50vw + var(--sbw) / 2); }
+  /* v35: barra embaixo tambem no computador (igual ao celular), centralizada */
+  .nav { top: auto; bottom: 0; left: 0; right: 0; transform: none; width: auto; z-index: 25; background: var(--surface); border-top: 1px solid var(--line); box-shadow: 0 -8px 24px rgba(0,0,0,.06); padding: 0; }
+  .nav ul { width: 100%; max-width: 760px; margin: 0 auto; padding: 0 0 env(safe-area-inset-bottom, 0px); gap: 6px; justify-content: center; background: none; border: 0; border-radius: 0; box-shadow: none; -webkit-backdrop-filter: none; backdrop-filter: none; }
+  .nav li { flex: 0 0 120px; display: block; }
+  .nav button { flex-direction: column; width: 100%; min-width: 0; height: 72px; min-height: 72px; padding: 6px 0 4px; gap: 2px; border-radius: 0; font-size: 12px; font-weight: 800; color: var(--muted); background: none; position: relative; }
+  .nav button svg { width: 22px; height: 22px; }
+  .nav button:hover { color: var(--fg); }
+  .nav button[aria-current="page"] { color: var(--accent); background: none; }
+  .nav button[aria-current="page"]::after { display: block; content: ""; position: absolute; top: 0; left: 28%; right: 28%; width: auto; height: 4px; border-radius: 0 0 4px 4px; background: var(--accent); }
+  :root[data-theme="dark"] .nav button[aria-current="page"] { color: var(--fg); }
+  body { padding-bottom: 72px; }
   .top { padding-block: 22px 14px; }
-  .toast { left: calc(50% + var(--sbw) / 2); }
+  .toast { bottom: 96px; }
 }
 @media (min-width: 900px) and (max-width: 1099px) { .wrap { max-width: none; } }
 
@@ -882,3 +872,8 @@ body[data-view="lista"] #btn-search, body[data-view="regioes"] #btn-search, body
 .ajustes { max-width: 720px; display: flex; flex-direction: column; gap: 12px; padding-bottom: 20px; }
 .ajustes .sec { margin: 14px 0 -2px; }
 @media (min-width: 900px) { .st-seg { max-width: 420px; } }
+/* v34.1: codigos longos de colecao dentro do selo */
+.st-badge.sm { overflow: hidden; padding: 0 3px; font-size: 13px; letter-spacing: -.02em; white-space: nowrap; }
+.st-badge.sm.long { font-size: 10px; letter-spacing: -.04em; }
+.st-item .st-t { min-width: 0; }
+.st-item .st-t b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

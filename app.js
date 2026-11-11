@@ -445,7 +445,7 @@
       '<span class="segc st-seg">' + chip('Mais cartas', UI.sort === 'n', 'data-sort="n"') + chip('Maior %', UI.sort === 'p', 'data-sort="p"') + chip('A–Z', UI.sort === 'a', 'data-sort="a"') + '</span><div class="st-list">';
     L.forEach(function (s, i) {
       var p = s.tot ? pct(s.own, s.tot) : 0;
-      h += '<button class="st-item' + (i === 0 && UI.sort === 'n' ? ' first' : '') + '" data-setgo="' + esc(s.c) + '"><span class="st-badge sm">' + esc(s.c) + '</span><span class="st-t"><b>' + esc(s.n || s.c) + '</b><small>' + s.own + (s.tot ? ' de ' + s.tot + ' cartas' : (s.own === 1 ? ' carta' : ' cartas')) + '</small></span>' +
+      h += '<button class="st-item' + (i === 0 && UI.sort === 'n' ? ' first' : '') + '" data-setgo="' + esc(s.c) + '"><span class="st-badge sm' + (s.c.length > 4 ? ' long' : '') + '">' + esc(s.c) + '</span><span class="st-t"><b>' + esc(s.n || s.c) + '</b><small>' + s.own + (s.tot ? ' de ' + s.tot + ' cartas' : (s.own === 1 ? ' carta' : ' cartas')) + '</small></span>' +
         (s.tot ? '<span class="st-p">' + fmt(p) + '<small>%</small></span><span class="st-bar"><i style="width:' + Math.min(100, p) + '%"></i></span>' : '') + '</button>';
     });
     return h + '</div>';
@@ -500,7 +500,7 @@
   }
 
   var SUB = { colecao: 'Coleção TCG · 1.025 Pokémon', vitrine: 'Só as cartas que tenho', lista: 'Lista de compras', regioes: 'Regiões e coleções', ajustes: 'Conta, aparência e dados' };
-  var APPV = 'v34';
+  var APPV = 'v35';
   function render() {
     var S = compute(), keep = [];
     Array.prototype.forEach.call(document.querySelectorAll('#app .scroller'), function (s) { keep.push(s.scrollLeft); });
