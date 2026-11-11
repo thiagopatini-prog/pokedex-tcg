@@ -885,3 +885,7 @@ body[data-view="lista"] #btn-search, body[data-view="regioes"] #btn-search, body
 .nav button[aria-current="page"]::after { display: block; content: ""; position: absolute; top: 0; left: 50%; width: 28px; height: 4px; margin-left: -14px; border-radius: 0 0 4px 4px; right: auto; background: var(--accent); }
 .nav button span, .nav button { line-height: 1.1; }
 @media (min-width: 900px) { .nav ul { max-width: 760px; } .nav li { flex: 0 0 120px; } .nav button[aria-current="page"]::after { left: 50%; right: auto; width: 36px; margin-left: -18px; } }
+/* v35.2: as faixas vermelhas usam 100vw (inclui a barra de rolagem) e criavam rolagem horizontal nas telas longas */
+html, body { overflow-x: clip; }
+/* v35.3: texto da região centralizado na vertical em relação ao mapa (computador) */
+@media (min-width: 900px) { .rg-hero { align-items: center; } .rg-hero > div { min-width: 0; } .rg-r { padding-block: 18px; } }
