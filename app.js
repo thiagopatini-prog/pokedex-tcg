@@ -31,7 +31,7 @@
   /* ---------- sincronização (Supabase, via db.js) ---------- */
   var SYNC = { msg: '', at: 0, busy: false, sent: '', email: '' }, pushTimer = null;
   function schedulePush() { if (!window.DB || !DB.user()) return; clearTimeout(pushTimer); pushTimer = setTimeout(syncNow, 1500); }
-  function syncState(msg) { SYNC.msg = msg; if (UI && UI.view === 'mais' && $('#viewer').hidden && $('#sheet').hidden) render(); }
+  function syncState(msg) { SYNC.msg = msg; if (UI && UI.view === 'ajustes' && $('#viewer').hidden && $('#sheet').hidden) render(); }
   function syncNow() {
     if (!window.DB || !DB.user() || SYNC.busy) return;
     SYNC.busy = true; syncState('Sincronizando…');
@@ -55,7 +55,7 @@
   var MIR = {}, MIRK = 'pktcg.mir', MIRP = { run: false, done: 0, total: 0, ok: 0, fail: 0 }, mirQ = [], mirBusy = 0, mirT = null;
   try { JSON.parse(localStorage.getItem(MIRK) || '[]').forEach(function (p) { MIR[p] = 1; }); } catch (e) {}
   function mirSave() { clearTimeout(mirT); mirT = setTimeout(function () { try { localStorage.setItem(MIRK, JSON.stringify(Object.keys(MIR))); } catch (e) {} }, 800); }
-  function mirUI() { if (UI && UI.view === 'mais' && $('#viewer').hidden && $('#sheet').hidden) render(); }
+  function mirUI() { if (UI && UI.view === 'ajustes' && $('#viewer').hidden && $('#sheet').hidden) render(); }
   // baixa a imagem da fonte original e guarda no servidor; resolve se a cópia existe no fim
   function mirrorUrl(url) {
     var p = DB.imgPath(url); if (MIR[p]) return Promise.resolve(true);
@@ -154,7 +154,7 @@
     })(0);
   }
 
-  var UI = { view: 'colecao', region: 0, status: 'all', fin: '', set: '', q: '', search: false, noimg: false };
+  var UI = { view: 'colecao', rsub: 'reg', rsel: 1, sort: 'n', region: 0, status: 'all', fin: '', set: '', q: '', search: false, noimg: false };
   var NOIMG = {}, PRES = null, SHEETKIND = '';
   var BY = {}, VISIBLE = [], V = { ids: [], i: 0 }, confirmRemove = false;
   var FIN_LABEL = { '': 'Normal', 'Normal': 'Normal', 'Reverse Foil': 'Reverse Foil', 'Foil': 'Foil', 'Promo': 'Promo', 'Pokeball Foil': 'Pokeball Foil' };
@@ -364,33 +364,120 @@
   function viewLista() {
     var items = wantList();
     if (!items.length) return '<div class="empty"><h2>Lista vazia</h2><p>Abra uma carta que falta e toque em “Adicionar à lista”, ou use o filtro Faltam e adicione várias de uma vez.</p></div>';
-    var h = '<div class="count-line"><span>' + items.length + (items.length === 1 ? ' carta para comprar' : ' cartas para comprar') + '</span></div><div class="actions"><button class="primary" data-act="copylist">Copiar lista</button><button class="ghost-btn" data-act="print">Imprimir fichas</button><button class="ghost-btn" data-act="clearlist">Limpar</button></div><ul class="list">';
+    var h = '<div class="count-line"><span>' + items.length + (items.length === 1 ? ' carta para comprar' : ' cartas para comprar') + '</span></div><div class="actions"><button class="primary" data-act="copylist">Copiar lista</button><button class="ghost-btn" data-act="clearlist">Limpar</button></div><div class="lista">';
     D.regions.forEach(function (r) {
       var g = items.filter(function (m) { return m.g === r.g; });
       if (!g.length) return;
-      h += '<h3>' + esc(r.name) + ' · ' + g.length + '</h3>';
+      h += '<h3>' + esc(r.name) + ' · ' + g.length + '</h3><div class="lgrid">';
       g.forEach(function (m) {
-        h += '<li class="li">' + sp(m, 'sp') + '<div class="t"><strong>' + esc(m.n) + '</strong><span>#' + pad(m.d) + (m.alt ? ' · forma alternativa' : '') + '</span></div><button class="icon-btn" data-act="unwant" data-id="' + m.id + '" aria-label="Tirar ' + esc(m.n) + ' da lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button></li>';
+        h += '<div class="lc"><div class="lart">' + sp(m, 'lsp') + '</div><button class="lx" data-act="unwant" data-id="' + m.id + '" aria-label="Tirar ' + esc(m.n) + ' da lista"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>' +
+          '<div class="lt"><strong>' + esc(m.n) + '</strong><span>#' + pad(m.d) + (m.alt ? ' · forma alternativa' : '') + '</span></div>' +
+          '<button class="ladd" data-act="addfromlist" data-id="' + m.id + '"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>Adicionar</button></div>';
       });
+      h += '</div>';
     });
-    return h + '</ul>';
+    return h + '</div>';
   }
-  function viewMais(S) {
-    var p = pct(S.own, S.tot);
-    var cards = D.regions.map(function (r) {
-      var bb = S.byR[r.g], pp = pct(bb.own, bb.tot), M = MAPS[r.g] || { c: 'var(--accent)', sub: '' };
-      return '<button class="reg-card" style="--rc:' + M.c + '" data-goto="' + r.g + '" aria-label="Ver ' + esc(r.name) + ' na coleção">' + mapSvg(r.g) +
-        '<span class="rn">' + esc(r.name) + '</span><span class="rs">' + esc(M.sub) + '</span><span class="rp">' + fmt(pp) + '<small>%</small></span>' +
-        '<span class="rc">' + bb.own + ' de ' + bb.tot + '</span><span class="bar"><i style="width:' + pp + '%"></i></span></button>';
-    }).join('');
-    var main = '<section class="reg-hero"><div><span class="rh-n">' + S.own + '<small> de ' + S.tot + '</small></span><span class="rh-s">cartas na coleção · ' + fmt(p) + '%</span></div>' +
-      '<div class="bar" aria-hidden="true"><i style="width:' + p + '%"></i></div></section>' +
-      '<h2 class="sec">Regiões</h2><div class="reg-grid">' + cards + '</div>';
-    var u = window.DB && DB.user(), acct;
+
+  /* ---------- regiões: texto estilo Pokédex e mapas grandes ---------- */
+  var RINFO = {
+    1: { jogos: 'Red, Green, Blue e Yellow', ano: '1996 (Japão)', prof: 'Carvalho', lenda: 'Mewtwo', ini: [1, 4, 7], ins: 'Japão · Kantō', d: 'Onde tudo começou. Vilarejos calmos, florestas e uma grande cidade ligam oito Ginásios até a Liga Pokémon, no Planalto Índigo. É a terra do Professor Carvalho e da Equipe Rocket.' },
+    2: { jogos: 'Gold, Silver e Crystal', ano: '1999 (Japão)', prof: 'Elm', lenda: 'Ho-Oh e Lugia', ini: [152, 155, 158], ins: 'Japão · Kansai', d: 'Uma região de tradição e lendas, com templos antigos e torres históricas. Introduziu os ciclos de dia e noite, a Criação e os Pokémon do tipo Sombrio e Aço.' },
+    3: { jogos: 'Ruby, Sapphire e Emerald', ano: '2002 (Japão)', prof: 'Birch', lenda: 'Groudon, Kyogre e Rayquaza', ini: [252, 255, 258], ins: 'Japão · Kyūshū', d: 'Uma região tropical, com muito mar, vulcões e clima instável. Foi palco do confronto entre as Equipes Magma e Aqua e trouxe as Habilidades e as Batalhas em Dupla.' },
+    4: { jogos: 'Diamond, Pearl e Platinum', ano: '2006 (Japão)', prof: 'Rowan', lenda: 'Dialga, Palkia e Giratina', ini: [387, 390, 393], ins: 'Japão · Hokkaido', d: 'Terra fria e montanhosa, cortada pelo Monte Coroa. Mitos sobre a criação do tempo e do espaço envolvem a região, e a Equipe Galáctica quer refazer o universo.' },
+    5: { jogos: 'Black, White, Black 2 e White 2', ano: '2010 (Japão)', prof: 'Juniper', lenda: 'Reshiram e Zekrom', ini: [495, 498, 501], ins: 'EUA · Nova York', d: 'Uma metrópole de arranha-céus e pontes gigantes. No começo da aventura só aparecem Pokémon novos, e a Equipe Plasma defende que Pokémon e treinadores deveriam se separar.' },
+    6: { jogos: 'X e Y', ano: '2013 (Japão)', prof: 'Sycamore', lenda: 'Xerneas e Yveltal', ini: [650, 653, 656], ins: 'França', d: 'Terra de arte, moda e castelos, com a Cidade Lumiose no centro. Aqui nasceram a Mega Evolução e o tipo Fada, e a Equipe Flare sonha com um mundo “bonito”.' },
+    7: { jogos: 'Sun, Moon, Ultra Sun e Ultra Moon', ano: '2016 (Japão)', prof: 'Kukui', lenda: 'Solgaleo e Lunala', ini: [722, 725, 728], ins: 'EUA · Havaí', d: 'Um arquipélago de praias e vulcões. No lugar dos Ginásios há Provas de Ilha e Pokémon Totem, e os Pokémon locais ganharam formas de Alola.' },
+    8: { jogos: 'Sword e Shield', ano: '2019 (Japão)', prof: 'Magnolia', lenda: 'Zacian e Zamazenta', ini: [810, 813, 816], ins: 'Reino Unido', d: 'Campos verdes, vilas industriais e estádios lotados, onde as lutas de Ginásio são transmitidas como esporte. É a região do Dynamax, da Zona Selvagem e das batalhas gigantes.' },
+    9: { jogos: 'Scarlet e Violet', ano: '2022 (Japão)', prof: 'Sada e Turo', lenda: 'Koraidon e Miraidon', ini: [906, 909, 912], ins: 'Península Ibérica', d: 'Um mundo aberto para explorar sem ordem fixa, de desertos a montanhas nevadas, com uma enorme cratera no meio. Traz a Terastalização e a Academia como ponto de partida.' }
+  };
+  function mapBig(g, W, H) {
+    var M = MAPS[g], all = []; M.r.forEach(function (ring) { all = all.concat(ring); });
+    var lat0 = all.reduce(function (s, p) { return s + p[1]; }, 0) / all.length, k = Math.cos(lat0 * Math.PI / 180);
+    var xs = all.map(function (p) { return p[0] * k; }), ys = all.map(function (p) { return -p[1]; });
+    var x0 = Math.min.apply(null, xs), x1 = Math.max.apply(null, xs), y0 = Math.min.apply(null, ys), y1 = Math.max.apply(null, ys);
+    var mx = W * .14, my = H * .14, sc = Math.min((W - 2 * mx) / ((x1 - x0) || 1), (H - 2 * my) / ((y1 - y0) || 1)), ox = (W - (x1 - x0) * sc) / 2, oy = (H - (y1 - y0) * sc) / 2, cx = 0, cy = 0, n = 0;
+    var d = M.r.map(function (ring) { return 'M' + ring.map(function (p) { var X = (p[0] * k - x0) * sc + ox, Y = (-p[1] - y0) * sc + oy; cx += X; cy += Y; n++; return X.toFixed(1) + ' ' + Y.toFixed(1); }).join('L') + 'Z'; }).join('');
+    return { d: d, cx: cx / n, cy: cy / n, c: M.c };
+  }
+  function heroMap(g) {
+    var W = 320, H = 220, m = mapBig(g, W, H), grid = '', x, y;
+    for (x = 0; x <= W; x += 20) grid += '<path d="M' + x + ' 0V' + H + '"/>';
+    for (y = 0; y <= H; y += 20) grid += '<path d="M0 ' + y + 'H' + W + '"/>';
+    return '<svg viewBox="0 0 ' + W + ' ' + H + '" preserveAspectRatio="xMidYMid slice" aria-hidden="true"><g stroke="var(--rgrid)" stroke-width="1">' + grid + '</g><path d="' + m.d + '" fill="' + m.c + '" fill-opacity=".22" stroke="' + m.c + '" stroke-width="3" stroke-linejoin="round"/>' +
+      '<circle cx="' + m.cx.toFixed(1) + '" cy="' + m.cy.toFixed(1) + '" r="14" fill="' + m.c + '" fill-opacity=".25"/><circle cx="' + m.cx.toFixed(1) + '" cy="' + m.cy.toFixed(1) + '" r="7" fill="' + m.c + '"/></svg>';
+  }
+  function miniMap(g) { var m = mapBig(g, 60, 48); return '<svg viewBox="0 0 60 48" aria-hidden="true"><path d="' + m.d + '" fill="' + m.c + '" fill-opacity=".22" stroke="' + m.c + '" stroke-width="2" stroke-linejoin="round"/></svg>'; }
+
+  /* ---------- coleções (sets): nome e total vêm da TCGdex e ficam guardados ---------- */
+  var SETI = {}, SETI_KEY = 'pktcg.sets.v1', SETFAIL = {}, setTimer = 0;
+  try { SETI = JSON.parse(localStorage.getItem(SETI_KEY) || '{}'); } catch (e) {}
+  function loadSetMeta(code) {
+    if (SETI[code] || SETFAIL[code]) return;
+    var p = (TDX[code] || [])[0]; if (!p) { SETFAIL[code] = 1; return; }
+    var sid = p.split('/')[1]; SETFAIL[code] = 1;
+    ['pt', 'en'].reduce(function (pr, l) {
+      return pr.catch(function () { return getJSON('https://api.tcgdex.net/v2/' + l + '/sets/' + sid); });
+    }, Promise.reject()).then(function (s) {
+      var cc = s.cardCount || {};
+      SETI[code] = { n: s.name || '', t: cc.official || cc.total || 0 };
+      try { localStorage.setItem(SETI_KEY, JSON.stringify(SETI)); } catch (e) {}
+      delete SETFAIL[code];
+      clearTimeout(setTimer);
+      setTimer = setTimeout(function () { if (UI.view === 'regioes' && UI.rsub === 'set' && $('#viewer').hidden && $('#sheet').hidden) render(); }, 250);
+    }, function () {});
+  }
+  function setStats() {
+    var cnt = {};
+    D.mons.forEach(function (m) { var e = eff(m); if (e.own && e.set && e.set !== '—') cnt[e.set] = (cnt[e.set] || 0) + 1; });
+    return Object.keys(cnt).map(function (c) { var i = SETI[c] || {}; return { c: c, n: i.n || '', own: cnt[c], tot: i.t || 0 }; });
+  }
+  function viewSets() {
+    var L = setStats(); L.forEach(function (s) { loadSetMeta(s.c); });
+    if (!L.length) return '<div class="empty"><h2>Sem coleções ainda</h2><p>Quando você registrar cartas, as coleções delas aparecem aqui.</p></div>';
+    var top = L.slice().sort(function (a, b) { return b.own - a.own || a.c.localeCompare(b.c); })[0];
+    L.sort(function (a, b) {
+      if (UI.sort === 'a') return (a.n || a.c).localeCompare(b.n || b.c);
+      if (UI.sort === 'p') { var pa = a.tot ? a.own / a.tot : -1, pb = b.tot ? b.own / b.tot : -1; return pb - pa || b.own - a.own; }
+      return b.own - a.own || a.c.localeCompare(b.c);
+    });
+    var h = '<div class="st-top"><span class="st-badge">' + esc(top.c) + '</span><div><small>Sua maior coleção</small><b>' + esc(top.n || top.c) + '</b><span>' + top.own + ' cartas' + (top.tot ? ' · ' + fmt(pct(top.own, top.tot)) + '% da coleção' : '') + '</span></div></div>' +
+      '<span class="segc st-seg">' + chip('Mais cartas', UI.sort === 'n', 'data-sort="n"') + chip('Maior %', UI.sort === 'p', 'data-sort="p"') + chip('A–Z', UI.sort === 'a', 'data-sort="a"') + '</span><div class="st-list">';
+    L.forEach(function (s, i) {
+      var p = s.tot ? pct(s.own, s.tot) : 0;
+      h += '<button class="st-item' + (i === 0 && UI.sort === 'n' ? ' first' : '') + '" data-setgo="' + esc(s.c) + '"><span class="st-badge sm">' + esc(s.c) + '</span><span class="st-t"><b>' + esc(s.n || s.c) + '</b><small>' + s.own + (s.tot ? ' de ' + s.tot + ' cartas' : (s.own === 1 ? ' carta' : ' cartas')) + '</small></span>' +
+        (s.tot ? '<span class="st-p">' + fmt(p) + '<small>%</small></span><span class="st-bar"><i style="width:' + Math.min(100, p) + '%"></i></span>' : '') + '</button>';
+    });
+    return h + '</div>';
+  }
+  function viewRegioes(S) {
+    var p = pct(S.own, S.tot), h = '<section class="reg-hero"><div><span class="rh-n">' + S.own + '<small> de ' + S.tot + '</small></span><span class="rh-s">cartas na coleção · ' + fmt(p) + '%</span></div><div class="bar" aria-hidden="true"><i style="width:' + p + '%"></i></div></section>';
+    h += '<span class="segc rg-seg">' + chip('Regiões', UI.rsub === 'reg', 'data-rsub="reg"') + chip('Coleções', UI.rsub === 'set', 'data-rsub="set"') + '</span>';
+    if (UI.rsub === 'set') return h + viewSets();
+    var g = UI.rsel; if (!RINFO[g]) g = UI.rsel = 1;
+    var R = RINFO[g], r = REG[g], B = S.byR[g], pp = pct(B.own, B.tot), c = MAPS[g].c;
+    h += '<div class="rg-chips" role="group" aria-label="Escolher região">' + D.regions.map(function (x) {
+      var bb = S.byR[x.g];
+      return '<button class="rg-chip' + (x.g === g ? ' on' : '') + '" style="--rc:' + MAPS[x.g].c + '" data-rsel="' + x.g + '" aria-pressed="' + (x.g === g ? 'true' : 'false') + '">' + miniMap(x.g) + '<span>' + esc(x.name) + '</span><b>' + fmt(pct(bb.own, bb.tot)) + '%</b></button>';
+    }).join('') + '</div>';
+    h += '<article class="rg-hero" style="--rc:' + c + '"><div class="rg-l"><div class="rg-hd"><div><div class="rg-no">Nº ' + String(r.first).padStart(3, '0') + ' – ' + String(r.last).padStart(3, '0') + '</div><h2>' + esc(r.name) + '</h2><div class="rg-ins">📍 Inspirada em: ' + esc(R.ins) + '</div></div>' +
+      '<div class="rg-ring" style="--p:' + pp + '"><i>' + fmt(pp) + '%</i></div></div><div class="rg-cnt">' + B.own + ' de ' + B.tot + ' Pokémon</div>' +
+      '<div class="rg-map">' + heroMap(g) + '<span class="rg-tag">' + esc(R.ins) + '</span></div></div>' +
+      '<div class="rg-r"><p class="rg-desc">' + esc(R.d) + '</p><div class="rg-facts"><div class="rg-f"><span>Inicial</span><div class="rg-ini">' + R.ini.map(function (d) { var m = BY[String(d)]; return m ? '<div>' + sp(m, 'rg-st') + '<small>' + esc(m.n) + '</small></div>' : ''; }).join('') + '</div></div>' +
+      '<div class="rg-f"><span>Jogos</span><b>' + esc(R.jogos) + '</b></div><div class="rg-f"><span>Lançamento</span><b>' + esc(R.ano) + '</b></div><div class="rg-f"><span>Professor</span><b>' + esc(R.prof) + '</b></div><div class="rg-f"><span>Lendários</span><b>' + esc(R.lenda) + '</b></div></div>' +
+      '<button class="rg-cta" data-goto="' + g + '">Ver cartas de ' + esc(r.name) + '</button></div></article>';
+    h += '<h2 class="sec">Todas as regiões</h2><div class="rg-grid">' + D.regions.map(function (x) {
+      var bb = S.byR[x.g], q = pct(bb.own, bb.tot);
+      return '<button class="rg-mini" style="--rc:' + MAPS[x.g].c + '" data-rsel="' + x.g + '">' + miniMap(x.g) + '<b>' + esc(x.name) + '</b><small>' + bb.own + ' de ' + bb.tot + ' · ' + fmt(q) + '%</small><span class="bar"><i style="width:' + q + '%"></i></span></button>';
+    }).join('') + '</div>';
+    return h;
+  }
+  function viewAjustes(S) {
+    var u = window.DB && DB.user(), acct, mir = '';
     if (u) {
       acct = '<section class="panel"><h2>Conta</h2><p>Conectado como <b>' + esc(u.email || 'sua conta') + '</b>. Sua coleção é a mesma em todos os aparelhos em que você entrar.</p><p>' + esc(SYNC.msg || 'Pronto para sincronizar') + '</p><div class="actions" style="padding-top:2px"><button class="primary" data-act="syncnow">Sincronizar agora</button><button class="ghost-btn" data-act="signout">Sair</button></div>' +
-        '<details style="margin-top:12px"' + (SYNC.pwOpen ? ' open' : '') + '><summary>Definir ou trocar a senha</summary><p>Com senha, você entra em outro aparelho só com e-mail e senha, sem esperar link no e-mail. Use pelo menos 10 caracteres.</p><div class="field"><label for="a-newpw">Nova senha</label><input id="a-newpw" type="password" autocomplete="new-password" minlength="8"></div><button class="primary" data-act="setpw">Salvar senha</button></details></section>' +
-        '<section class="panel"><h2>Imagens no seu servidor</h2><p>' +
+        '<details style="margin-top:12px"' + (SYNC.pwOpen ? ' open' : '') + '><summary>Definir ou trocar a senha</summary><p>Com senha, você entra em outro aparelho só com e-mail e senha, sem esperar link no e-mail. Use pelo menos 10 caracteres.</p><div class="field"><label for="a-newpw">Nova senha</label><input id="a-newpw" type="password" autocomplete="new-password" minlength="8"></div><button class="primary" data-act="setpw">Salvar senha</button></details></section>';
+      mir = '<section class="panel"><h2>Imagens no seu servidor</h2><p>' +
         (MIRP.run ? 'Copiando… ' + MIRP.done + ' de ' + MIRP.total + (MIRP.fail ? ' · ' + MIRP.fail + ' sem imagem' : '') :
           MIRP.total ? 'Pronto: ' + MIRP.ok + ' de ' + MIRP.total + ' copiadas' + (MIRP.fail ? ' · ' + MIRP.fail + ' não encontradas' : '') + '.' :
           'As imagens que você vê são copiadas sozinhas para o seu servidor (' + Object.keys(MIR).length + ' até agora). Para copiar todas as das suas cartas de uma vez, toque abaixo.') +
@@ -404,20 +491,21 @@
           '<details style="margin-top:10px"><summary>Meu e-mail trouxe um código</summary><div class="field"><label for="a-code">Código do e-mail</label><input id="a-code" inputmode="numeric" autocomplete="one-time-code" placeholder="123456"></div><button class="ghost-btn" data-act="verify">Entrar com o código</button></details>' : '') +
         (SYNC.msg ? '<p>' + esc(SYNC.msg) + '</p>' : '') + '</section>';
     }
-    var side = acct + '<section class="panel"><h2>Aparência</h2><div class="opt"><span>Tema</span><div class="seg">' +
-      chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Auto', PREF.theme === 'auto', 'data-theme-set="auto"') +
-      '</div></div></section>' +
-      '<section class="panel"><h2>Seus dados</h2><p>A coleção fica salva neste aparelho. Exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="print">Imprimir fichas</button><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>' +
-      '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa.</p></section>';
-    return '<div class="mais"><div class="mais-main">' + main + '</div><aside class="mais-side">' + side + '</aside></div>';
+    var tema = '<section class="panel"><div class="opt"><span>Tema</span><div class="seg">' +
+      chip('Escuro', PREF.theme === 'dark', 'data-theme-set="dark"') + chip('Claro', PREF.theme === 'light', 'data-theme-set="light"') + chip('Auto', PREF.theme === 'auto', 'data-theme-set="auto"') + '</div></div></section>';
+    var dados = '<section class="panel"><h2>Impressão e planilha</h2><p>Imprima as fichas das cartas que faltam, com marca de corte, para montar a pasta. A coleção fica salva neste aparelho; exporte um CSV no mesmo formato da planilha para atualizar o Excel.</p><div class="actions" style="padding-top:4px"><button class="primary" data-act="print">Imprimir fichas</button><button class="ghost-btn" data-act="export">Exportar CSV</button><button class="ghost-btn" data-act="copylist">Copiar lista de compras</button></div></section>';
+    var avanc = mir + '<section class="panel"><h2>Imagens das cartas</h2><p>As imagens vêm da base pública TCGdex. Se uma carta estiver errada ou sem imagem, abra a carta, toque em “Editar carta” e use a busca para escolher a certa.</p></section>' +
+      '<section class="panel"><h2>Voltar à planilha</h2><p>Apaga o que você registrou neste aparelho e volta aos dados da planilha original.</p><div class="actions" style="padding-top:4px"><button class="ghost-btn" data-act="reset">' + (confirmRemove === 'reset' ? 'Confirmar: voltar à planilha' : 'Voltar aos dados da planilha') + '</button></div></section>';
+    return '<div class="ajustes"><h2 class="sec">Conta e sincronização</h2>' + acct + '<h2 class="sec">Aparência</h2>' + tema + '<h2 class="sec">Dados e impressão</h2>' + dados + '<h2 class="sec">Avançado</h2>' + avanc + '<h2 class="sec">Sobre</h2><section class="panel"><p>Pokédex TCG · versão ' + APPV + '</p></section></div>';
   }
 
-  var SUB = { colecao: 'Coleção TCG · 1.025 Pokémon', vitrine: 'Só as cartas que tenho', lista: 'Lista de compras', mais: 'Ajustes e dados' };
+  var SUB = { colecao: 'Coleção TCG · 1.025 Pokémon', vitrine: 'Só as cartas que tenho', lista: 'Lista de compras', regioes: 'Regiões e coleções', ajustes: 'Conta, aparência e dados' };
+  var APPV = 'v34';
   function render() {
     var S = compute(), keep = [];
     Array.prototype.forEach.call(document.querySelectorAll('#app .scroller'), function (s) { keep.push(s.scrollLeft); });
-    VISIBLE = UI.view === 'lista' || UI.view === 'mais' ? [] : filtered(S.all);
-    var html = UI.view === 'colecao' ? viewColecao(S) : UI.view === 'vitrine' ? viewVitrine(S) : UI.view === 'lista' ? viewLista() : viewMais(S);
+    VISIBLE = UI.view === 'lista' || UI.view === 'regioes' || UI.view === 'ajustes' ? [] : filtered(S.all);
+    var html = UI.view === 'colecao' ? viewColecao(S) : UI.view === 'vitrine' ? viewVitrine(S) : UI.view === 'lista' ? viewLista() : UI.view === 'regioes' ? viewRegioes(S) : viewAjustes(S);
     $('#app').innerHTML = html;
     Array.prototype.forEach.call(document.querySelectorAll('#app .scroller'), function (s, i) { if (keep[i]) s.scrollLeft = keep[i]; });
     $('#h-sub').textContent = SUB[UI.view];
@@ -675,9 +763,23 @@
   var tt;
   function toast(msg) { var t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(tt); tt = setTimeout(function () { t.hidden = true; }, 2200); }
 
+  /* ---------- menu lateral recolhível (computador) ---------- */
+  var navMini = false;
+  try { navMini = localStorage.getItem('pktcg.navmini') === '1'; } catch (e) {}
+  function applyNav() {
+    document.body.classList.toggle('nav-mini', navMini);
+    var b = $('#nav-toggle'); if (b) { b.setAttribute('aria-label', navMini ? 'Expandir menu' : 'Recolher menu'); b.setAttribute('aria-expanded', navMini ? 'false' : 'true'); b.title = navMini ? 'Expandir menu' : 'Recolher menu'; }
+  }
+  applyNav();
+
   /* ---------- eventos ---------- */
   document.addEventListener('click', function (e) {
     var t = e.target.closest('button'); if (!t) return;
+    if (t.id === 'nav-toggle') { navMini = !navMini; try { localStorage.setItem('pktcg.navmini', navMini ? '1' : '0'); } catch (e) {} return applyNav(); }
+    if (t.hasAttribute('data-rsub')) { UI.rsub = t.getAttribute('data-rsub'); return render(); }
+    if (t.hasAttribute('data-rsel')) { UI.rsel = +t.getAttribute('data-rsel'); render(); if (t.classList.contains('rg-mini')) window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    if (t.hasAttribute('data-sort')) { UI.sort = t.getAttribute('data-sort'); return render(); }
+    if (t.hasAttribute('data-setgo')) { UI.set = t.getAttribute('data-setgo'); UI.region = 0; UI.status = 'own'; location.hash = 'colecao'; return; }
     if (t.hasAttribute('data-goto')) { UI.region = +t.getAttribute('data-goto'); UI.status = 'all'; location.hash = 'colecao'; return; }
     if (t.hasAttribute('data-theme-set')) { PREF.theme = t.getAttribute('data-theme-set'); savePref(); return render(); }
     if (t.hasAttribute('data-size-set')) { PREF.size = t.getAttribute('data-size-set'); savePref(); return render(); }
@@ -692,6 +794,7 @@
       var n = 0; VISIBLE.forEach(function (m) { if (!m.own && !noCard(m) && ST.wants.indexOf(m.id) < 0) { ST.wants.push(m.id); n++; } });
       save(); render(); return toast(n + ' adicionadas à lista');
     }
+    if (act === 'addfromlist') { V.ids = []; V.i = 0; return openSheet(t.getAttribute('data-id')); }
     if (act === 'unwant') { var k = ST.wants.indexOf(t.getAttribute('data-id')); if (k >= 0) ST.wants.splice(k, 1); save(); return render(); }
     if (act === 'clearlist') { ST.wants = []; save(); return render(); }
     if (act === 'copylist') {
@@ -819,13 +922,14 @@
     mirEnqueue(t.currentSrc || t.src);
   }, true);
 
-  $('#btn-theme').addEventListener('click', function () { PREF.theme = resolveTheme() === 'light' ? 'dark' : 'light'; savePref(); if (UI.view === 'mais') render(); });
+  $('#btn-theme').addEventListener('click', function () { PREF.theme = resolveTheme() === 'light' ? 'dark' : 'light'; savePref(); if (UI.view === 'ajustes') render(); });
   $('#btn-search').addEventListener('click', function () {
     UI.search = !UI.search; $('#search').hidden = !UI.search;
     if (UI.search) $('#q').focus(); else { UI.q = ''; $('#q').value = ''; render(); }
   });
   document.addEventListener('keydown', function (e) { if (e.key === 'Enter' && e.target && e.target.id === 'f-q') { e.preventDefault(); runFind(); } });
   $('#q').addEventListener('input', function (e) { UI.q = e.target.value; render(); });
+  $('#q').addEventListener('keydown', function (e) { if (e.key === 'Escape') { e.preventDefault(); if (this.value) { this.value = ''; UI.q = ''; render(); } else $('#btn-search').click(); } });
   $('#v-close').addEventListener('click', closeViewer);
   $('#v-prev').addEventListener('click', function () { go(-1); });
   $('#v-next').addEventListener('click', function () { go(1); });
@@ -1326,9 +1430,10 @@
   lBadge();
 
   /* ---------- rota e início ---------- */
-  var VIEWS = ['colecao', 'vitrine', 'lista', 'mais'];
+  var VIEWS = ['colecao', 'vitrine', 'lista', 'regioes', 'ajustes'];
   function route() {
     var h = (location.hash || '').replace('#', '');
+    if (h === 'mais') { h = 'ajustes'; try { history.replaceState(null, '', location.pathname + location.search + '#ajustes'); } catch (e) {} }
     UI.view = VIEWS.indexOf(h) >= 0 ? h : 'colecao';
     if (!$('#viewer').hidden) { stopPresent(); $('#viewer').hidden = true; document.body.style.overflow = ''; }
     if (!$('#sheet').hidden) closeSheet();
@@ -1352,7 +1457,7 @@
     for (var p = 0; p < n; p++) {
       var h = '<div class="pgp" style="width:' + prMm(W) + ';height:' + prMm(H) + '"><div class="pgg' + (PR.guide ? ' guide' : '') + '" style="left:' + prMm(ox) + ';top:' + prMm(oy) + '">';
       items.slice(p * 9, p * 9 + 9).forEach(function (m) {
-        h += '<div class="pc ' + (PR.fill === 'g' ? 'pcg' : '') + '"><div class="pcx"></div><div class="pct">' + esc(m.n) + '</div>' + sp(m, 'pca') + '<div class="pcn">#' + pad(m.d) + (PR.region && REG[m.g] ? ' · ' + esc(REG[m.g].name) : '') + '</div></div>';
+        h += '<div class="pc ' + (PR.fill === 'g' ? 'pcg' : '') + '"><div class="pcx"></div><div class="pcname">' + esc(m.n) + '</div>' + sp(m, 'pca') + '<div class="pcn">#' + pad(m.d) + (PR.region && REG[m.g] ? ' · ' + esc(REG[m.g].name) : '') + '</div></div>';
       });
       h += '</div>';
       if (PR.marks) {
