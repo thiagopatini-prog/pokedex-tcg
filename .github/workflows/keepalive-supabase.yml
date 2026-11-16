@@ -1,0 +1,26 @@
+# Mantem o projeto Supabase ativo (evita a pausa do plano gratuito por inatividade).
+# Roda sozinho a cada 3 dias e faz so uma consulta de leitura. Nao altera nenhum dado.
+name: keepalive-supabase
+
+on:
+  schedule:
+    - cron: '17 11 */3 * *'   # a cada 3 dias, ~08:17 no horario de Brasilia
+  workflow_dispatch:            # permite rodar manualmente em Actions > Run workflow
+
+permissions:
+  contents: read
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Consulta leve ao Supabase
+        run: |
+          URL=$(grep -oE "https://[a-z0-9]+\.supabase\.co" db.js | head -1)
+          KEY=$(grep -E "var KEY *=" db.js | grep -oE "['\"][^'\"]+['\"]" | head -1 | tr -d "'\"")
+          if [ -z "$URL" ] || [ -z "$KEY" ]; then echo "URL ou chave nao encontradas em db.js"; exit 1; fi
+          for P in "/rest/v1/collection_state?select=t&limit=1" "/auth/v1/health"; do
+            CODE=$(curl -s -o /dev/null -w "%{http_code}" "$URL$P" -H "apikey: $KEY")
+            echo "$P -> HTTP $CODE"
+          done
